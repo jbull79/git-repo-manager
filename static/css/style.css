@@ -165,7 +165,7 @@ body {
 
 .dark .repo-card.needs-update {
     border-color: #dc2626;
-    background: linear-gradient(135deg, #1f2937 0%, #7f1d1d 50%, #991b1b 100%);
+    background: linear-gradient(135deg, #1f2937 0%, #7f1d1d 50%, #991b1b 100%) !important; /* Force dark background, override Tailwind classes */
     box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.3), 0 2px 4px -1px rgba(220, 38, 38, 0.2);
 }
 
@@ -177,11 +177,15 @@ body {
 
 .dark .repo-card.needs-update:hover {
     border-color: #b91c1c;
-    background: linear-gradient(135deg, #1f2937 0%, #991b1b 50%, #7f1d1d 100%);
+    background: linear-gradient(135deg, #1f2937 0%, #991b1b 50%, #7f1d1d 100%) !important; /* Force dark background on hover */
     box-shadow: 0 20px 25px -5px rgba(185, 28, 28, 0.4), 0 10px 10px -5px rgba(185, 28, 28, 0.3);
 }
 
 /* Ensure repository titles and text are readable in dark mode for needs-update cards */
+.dark .repo-card.needs-update {
+    color: #e5e7eb; /* Ensure all text in needs-update cards is light in dark mode */
+}
+
 .dark .repo-card.needs-update h3 {
     color: #f3f4f6 !important; /* Light gray for better contrast against dark red background */
 }
@@ -190,16 +194,18 @@ body {
     color: #60a5fa !important; /* Light blue on hover for better visibility */
 }
 
-.dark .repo-card.needs-update {
-    color: #e5e7eb; /* Ensure all text in needs-update cards is light in dark mode */
-}
-
 .dark .repo-card.needs-update .text-gray-600 {
     color: #d1d5db !important; /* Lighter gray for secondary text */
 }
 
 .dark .repo-card.needs-update .text-gray-400 {
     color: #9ca3af !important; /* Lighter gray for tertiary text */
+}
+
+/* Fallback: If background is white/light in dark mode (shouldn't happen but just in case), use dark text */
+.dark .repo-card.bg-white h3,
+.dark .repo-card.needs-update.bg-white h3 {
+    color: #111827 !important; /* Dark text for white backgrounds in dark mode */
 }
 
 /* Dark mode scrollbar */

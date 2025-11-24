@@ -263,7 +263,7 @@ function createRepoCard(repo) {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
+                    <h3 class="text-xl font-bold text-black dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
                 </div>
                 <div class="ml-2 flex-shrink-0">
                     ${statusBadge}
@@ -399,8 +399,8 @@ async function pullRepo(repoName) {
         
         if (data.success) {
             showToast(`Successfully updated ${repoName}`, 'success');
-            // Reload repositories after a short delay
-            setTimeout(loadRepositories, 1000);
+            // Reload repositories with force refresh to bypass cache and show updated status
+            setTimeout(() => loadRepositories(true), 1000);
         } else {
             showToast(`Failed to update ${repoName}: ${data.error}`, 'error');
         }
@@ -442,8 +442,8 @@ async function pullAllRepos() {
             });
         }
         
-        // Reload repositories after a short delay
-        setTimeout(loadRepositories, 1000);
+        // Reload repositories with force refresh to bypass cache and show updated status
+        setTimeout(() => loadRepositories(true), 1000);
     } catch (error) {
         showToast(`Error updating repositories: ${error.message}`, 'error');
     } finally {
