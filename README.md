@@ -1,4 +1,4 @@
-# Git Repository Manager
+# Git Repository Manager.
 
 A Dockerized web application that monitors and manages git repositories, providing a professional web interface to view repository status, branches, and perform git pull operations.
 
