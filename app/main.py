@@ -7,6 +7,7 @@ from app.scheduler import ScheduleManager
 from app.activity_log import ActivityLog
 from app.repo_groups import RepoGroups
 from app.settings import Settings
+from app.cache import CacheManager
 
 # Get the base directory (parent of app/)
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,12 +35,20 @@ git_path = settings.get("git_path", os.getenv("GIT_PATH", "/git"))
 host_git_path = os.getenv("HOST_GIT_PATH", settings.get("host_git_path", "~/git"))
 if host_git_path and host_git_path != settings.get("host_git_path"):
     settings.set("host_git_path", host_git_path)
+# Store host SSH path from environment for display
+host_ssh_path = os.getenv("HOST_SSH_PATH", settings.get("host_ssh_path", "~/.ssh"))
+if host_ssh_path and host_ssh_path != settings.get("host_ssh_path"):
+    settings.set("host_ssh_path", host_ssh_path)
+
+# Initialize cache manager with TTL from settings
+cache_ttl = settings.get("cache_ttl_seconds", 600)
+cache_manager = CacheManager(ttl_seconds=cache_ttl)
 
 # Initialize services with configurable git path
 scanner = GitScanner(base_path=git_path)
 activity_log = ActivityLog(log_file=f"{DATA_DIR}/activity_log.json")
-operations = GitOperations(base_path=git_path, activity_log=activity_log)
-schedule_manager = ScheduleManager(base_path=git_path, config_file=f"{DATA_DIR}/schedules.json", activity_log=activity_log)
+operations = GitOperations(base_path=git_path, activity_log=activity_log, cache_manager=cache_manager)
+schedule_manager = ScheduleManager(base_path=git_path, config_file=f"{DATA_DIR}/schedules.json", activity_log=activity_log, cache_manager=cache_manager)
 repo_groups = RepoGroups(config_file=f"{DATA_DIR}/repo_groups.json")
 
 
@@ -59,7 +68,11 @@ def health():
 def list_repos():
     """List all repositories with their status."""
     try:
-        repos = scanner.scan_all_repos()
+        # Check for force_refresh parameter
+        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+        
+        # Use cache if available
+        repos = scanner.scan_all_repos(force_refresh=force_refresh, cache_manager=cache_manager)
         
         # Add groups and tags to each repo
         for repo in repos:
@@ -501,9 +514,13 @@ def bulk_pull():
 def get_settings():
     """Get all settings."""
     try:
+        all_settings = settings.get_all()
+        # Add environment variable info for host paths
+        all_settings['HOST_GIT_PATH'] = os.getenv("HOST_GIT_PATH", "Not set")
+        all_settings['HOST_SSH_PATH'] = os.getenv("HOST_SSH_PATH", "Not set")
         return jsonify({
             "success": True,
-            "settings": settings.get_all()
+            "settings": all_settings
         })
     except Exception as e:
         return jsonify({
@@ -530,25 +547,31 @@ def update_settings():
         # Update settings
         settings.update(**data)
         
+        # If cache_ttl_seconds changed, update cache manager
+        if 'cache_ttl_seconds' in data:
+            new_ttl = settings.get("cache_ttl_seconds", 600)
+            cache_manager.update_ttl(new_ttl)
+        
         # If git_path changed, reinitialize services
         if 'git_path' in data:
             global scanner, operations, schedule_manager
             new_git_path = settings.get("git_path")
             scanner = GitScanner(base_path=new_git_path)
-            operations = GitOperations(base_path=new_git_path, activity_log=activity_log)
+            operations = GitOperations(base_path=new_git_path, activity_log=activity_log, cache_manager=cache_manager)
             schedule_manager = ScheduleManager(
                 base_path=new_git_path, 
                 config_file=f"{DATA_DIR}/schedules.json", 
-                activity_log=activity_log
+                activity_log=activity_log,
+                cache_manager=cache_manager
             )
         
-        # Note: host_git_path is informational only - actual mount is in docker-compose.yml
-        # We store it so users can see what they configured
+        # Note: host_git_path and host_ssh_path are informational only - actual mounts are in docker-compose.yml
+        # We store them so users can see what they configured
         
         return jsonify({
             "success": True,
             "settings": settings.get_all(),
-            "message": "Settings saved. If you changed the host git path, update HOST_GIT_PATH in .env or docker-compose.yml and restart the container."
+            "message": "Settings saved. If you changed the host git path or SSH path, update HOST_GIT_PATH or HOST_SSH_PATH in .env or docker-compose.yml and restart the container."
         })
     except Exception as e:
         return jsonify({
@@ -562,9 +585,48 @@ def reset_settings():
     """Reset settings to defaults."""
     try:
         settings.reset()
+        # Update cache TTL to default
+        cache_manager.update_ttl(settings.get("cache_ttl_seconds", 600))
         return jsonify({
             "success": True,
             "settings": settings.get_all()
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_cache():
+    """Clear the cache and return statistics."""
+    try:
+        stats_before = cache_manager.get_stats()
+        cache_manager.invalidate_all()
+        stats_after = cache_manager.get_stats()
+        
+        return jsonify({
+            "success": True,
+            "message": "Cache cleared successfully",
+            "stats_before": stats_before,
+            "stats_after": stats_after
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/cache/stats', methods=['GET'])
+def cache_stats():
+    """Get cache statistics."""
+    try:
+        stats = cache_manager.get_stats()
+        return jsonify({
+            "success": True,
+            "stats": stats
         })
     except Exception as e:
         return jsonify({

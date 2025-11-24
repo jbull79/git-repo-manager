@@ -1,6 +1,7 @@
 """Git operations (pull, etc.)"""
 from pathlib import Path
 from typing import Dict, Optional
+import os
 import git
 from git import Repo, InvalidGitRepositoryError, GitCommandError
 
@@ -8,10 +9,20 @@ from git import Repo, InvalidGitRepositoryError, GitCommandError
 class GitOperations:
     """Handle git operations like pull."""
     
-    def __init__(self, base_path: str = "/git", activity_log=None):
+    def __init__(self, base_path: str = "/git", activity_log=None, cache_manager=None):
         """Initialize with base path."""
         self.base_path = Path(base_path)
         self.activity_log = activity_log
+        self.cache_manager = cache_manager
+        # Configure git to use SSH with proper settings
+        self._configure_git_ssh()
+    
+    def _configure_git_ssh(self):
+        """Configure git to use SSH properly."""
+        # Set GIT_SSH_COMMAND to use SSH with strict host key checking disabled for first connection
+        # This helps with containerized environments
+        ssh_command = "ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/home/appuser/.ssh/known_hosts"
+        os.environ.setdefault('GIT_SSH_COMMAND', ssh_command)
     
     def pull_repo(self, repo_name: str) -> Dict:
         """Pull updates for a specific repository."""
@@ -60,6 +71,10 @@ class GitOperations:
                     "updates": len(pull_info) if pull_info else 0,
                     "branch": current_branch
                 }
+                # Invalidate cache for this repo and 'all' cache
+                if self.cache_manager:
+                    self.cache_manager.invalidate(repo_name)
+                    self.cache_manager.invalidate('all')
                 # Log activity
                 if self.activity_log:
                     self.activity_log.log_operation(
@@ -114,6 +129,10 @@ class GitOperations:
             else:
                 results["failed"] += 1
                 results["success"] = False
+        
+        # Invalidate entire cache after bulk pull
+        if self.cache_manager:
+            self.cache_manager.invalidate_all()
         
         # Log bulk operation
         if self.activity_log:

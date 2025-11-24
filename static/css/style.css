@@ -181,6 +181,27 @@ body {
     box-shadow: 0 20px 25px -5px rgba(185, 28, 28, 0.4), 0 10px 10px -5px rgba(185, 28, 28, 0.3);
 }
 
+/* Ensure repository titles and text are readable in dark mode for needs-update cards */
+.dark .repo-card.needs-update h3 {
+    color: #f3f4f6 !important; /* Light gray for better contrast against dark red background */
+}
+
+.dark .repo-card.needs-update h3:hover {
+    color: #60a5fa !important; /* Light blue on hover for better visibility */
+}
+
+.dark .repo-card.needs-update {
+    color: #e5e7eb; /* Ensure all text in needs-update cards is light in dark mode */
+}
+
+.dark .repo-card.needs-update .text-gray-600 {
+    color: #d1d5db !important; /* Lighter gray for secondary text */
+}
+
+.dark .repo-card.needs-update .text-gray-400 {
+    color: #9ca3af !important; /* Lighter gray for tertiary text */
+}
+
 /* Dark mode scrollbar */
 .dark .branch-list::-webkit-scrollbar-track {
     background: #374151;

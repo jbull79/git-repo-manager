@@ -13,13 +13,14 @@ from app.activity_log import ActivityLog
 class ScheduleManager:
     """Manages scheduled git pull operations."""
     
-    def __init__(self, base_path: str = "/git", config_file: str = "/app/schedules.json", activity_log=None):
+    def __init__(self, base_path: str = "/git", config_file: str = "/app/schedules.json", activity_log=None, cache_manager=None):
         """Initialize scheduler manager."""
         self.base_path = base_path
         self.config_file = config_file
         self.scheduler = BackgroundScheduler()
         self.activity_log = activity_log
-        self.operations = GitOperations(base_path=base_path, activity_log=activity_log)
+        self.cache_manager = cache_manager
+        self.operations = GitOperations(base_path=base_path, activity_log=activity_log, cache_manager=cache_manager)
         self.schedules = self._load_schedules()
         self._start_scheduler()
     
@@ -128,16 +129,20 @@ class ScheduleManager:
             try:
                 result = self.operations.pull_repo(repo)
                 print(f"Schedule pull result for {repo}: {result}")
+                
+                # Cache invalidation is handled in GitOperations.pull_repo()
+                # No need to invalidate here as it's already done
+                
                 if self.activity_log:
                     self.activity_log.log_operation(
-                        'schedule_pull', repo, 'success' if result['success'] else 'error',
+                        'scheduled_pull', repo, 'success' if result['success'] else 'error',
                         f"{schedule_name}: {result.get('message', result.get('error', 'Unknown'))}",
-                        result
+                        {"updates": result.get('updates', 0), "branch": result.get('branch', 'unknown')}
                     )
             except Exception as e:
                 print(f"Error pulling {repo}: {e}")
                 if self.activity_log:
-                    self.activity_log.log_operation('schedule_pull', repo, 'error', str(e))
+                    self.activity_log.log_operation('scheduled_pull', repo, 'error', str(e))
     
     def create_schedule(self, name: str, repos: List[str], schedule_type: str, 
                        value: Optional[str] = None, **kwargs) -> Dict:

@@ -14,12 +14,10 @@ services:
     volumes:
       - ${HOST_GIT_PATH:-~/git}:/git
       - ./data:/app/data
+      - ${HOST_SSH_PATH:-~/.ssh}:/home/appuser/.ssh:ro
+      - ~/.gitconfig:/home/appuser/.gitconfig:ro
     environment:
       - FLASK_ENV=production
       - HOST_GIT_PATH=${HOST_GIT_PATH:-~/git}
     restart: unless-stopped
-    # Note: For git pull operations on private repos, you may need to mount SSH keys
-    # Uncomment the following lines if you need SSH access for private repos:
-    #   - ~/.ssh:/home/appuser/.ssh:ro
-    #   - ~/.gitconfig:/home/appuser/.gitconfig:ro
 

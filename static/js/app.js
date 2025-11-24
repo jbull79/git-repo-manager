@@ -67,7 +67,25 @@ function closeAllModals() {
 
 // Event listeners
 function initializeEventListeners() {
-    document.getElementById('refreshBtn').addEventListener('click', loadRepositories);
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        loadRepositories(true); // Force refresh bypasses cache
+    });
+    
+    document.getElementById('clearCacheBtn').addEventListener('click', async () => {
+        try {
+            const response = await fetch(`${API_BASE}/cache/clear`, { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Cache cleared successfully', 'success');
+                // Reload repositories after clearing cache
+                loadRepositories(true);
+            } else {
+                showToast('Failed to clear cache: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Error clearing cache: ' + error.message, 'error');
+        }
+    });
     document.getElementById('pullAllBtn').addEventListener('click', pullAllRepos);
     document.getElementById('autoRefreshToggle').addEventListener('change', toggleAutoRefresh);
     document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
@@ -245,7 +263,7 @@ function createRepoCard(repo) {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-800 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
+                    <h3 class="text-xl font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
                 </div>
                 <div class="ml-2 flex-shrink-0">
                     ${statusBadge}
@@ -782,22 +800,59 @@ async function handleScheduleSubmit(event) {
 // Statistics Dashboard
 async function loadStats() {
     try {
-        const response = await fetch(`${API_BASE}/stats`);
-        const data = await response.json();
+        // Load both stats and cache stats
+        const [statsResponse, cacheResponse] = await Promise.all([
+            fetch(`${API_BASE}/stats`),
+            fetch(`${API_BASE}/cache/stats`)
+        ]);
+        const statsData = await statsResponse.json();
+        const cacheData = await cacheResponse.json();
         
-        if (data.success) {
-            renderStats(data.stats);
+        if (statsData.success) {
+            renderStats(statsData.stats, cacheData.success ? cacheData.stats : null);
         }
     } catch (error) {
         console.error('Error loading stats:', error);
     }
 }
 
-function renderStats(stats) {
+function renderStats(stats, cacheStats) {
     const container = document.getElementById('statsContent');
     const statusCounts = stats.status_counts || {};
     
+    let cacheHtml = '';
+    if (cacheStats) {
+        cacheHtml = `
+            <div class="stats-card bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 p-6 rounded-xl border border-purple-200 dark:border-purple-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="p-2 bg-purple-500 rounded-lg">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="text-3xl font-bold text-purple-800 dark:text-purple-100 mb-1">${cacheStats.hit_rate}%</div>
+                <div class="text-sm font-medium text-purple-600 dark:text-purple-300">Cache Hit Rate</div>
+                <div class="mt-4 space-y-1 text-xs text-purple-700 dark:text-purple-300">
+                    <div class="flex justify-between">
+                        <span>Hits:</span>
+                        <span class="font-bold">${cacheStats.hits}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Misses:</span>
+                        <span class="font-bold">${cacheStats.misses}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Entries:</span>
+                        <span class="font-bold">${cacheStats.entries}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
     container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="stats-card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 p-6 rounded-xl border border-blue-200 dark:border-blue-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
             <div class="flex items-center justify-between mb-2">
                 <div class="p-2 bg-blue-500 rounded-lg">
@@ -842,6 +897,8 @@ function renderStats(stats) {
             <div class="text-3xl font-bold text-red-800 dark:text-red-100 mb-1">${statusCounts.diverged || 0}</div>
             <div class="text-sm font-medium text-red-600 dark:text-red-300">Diverged</div>
         </div>
+        </div>
+        ${cacheHtml}
     `;
 }
 
@@ -1109,9 +1166,17 @@ async function loadSettings() {
             const settings = data.settings;
             document.getElementById('settingsHostGitPath').value = settings.host_git_path || '~/git';
             document.getElementById('currentHostGitPath').textContent = settings.host_git_path || '~/git';
+            document.getElementById('settingsHostSshPath').value = settings.host_ssh_path || '~/.ssh';
+            document.getElementById('currentHostSshPath').textContent = settings.host_ssh_path || '~/.ssh';
+            // Also show environment variable if available
+            if (settings.HOST_SSH_PATH && settings.HOST_SSH_PATH !== 'Not set') {
+                document.getElementById('currentHostSshPath').textContent = settings.HOST_SSH_PATH;
+            }
             document.getElementById('settingsGitPath').value = settings.git_path || '/git';
             document.getElementById('settingsAutoRefresh').value = settings.auto_refresh_interval || 30;
             document.getElementById('settingsMaxLogEntries').value = settings.max_activity_log_entries || 1000;
+            document.getElementById('settingsCacheTtl').value = settings.cache_ttl_seconds || 600;
+            document.getElementById('settingsCacheTtl').value = settings.cache_ttl_seconds || 600;
         } else {
             showToast('Failed to load settings', 'error');
         }
@@ -1124,12 +1189,19 @@ async function handleSettingsSubmit(event) {
     event.preventDefault();
     
     const hostGitPath = document.getElementById('settingsHostGitPath').value.trim();
+    const hostSshPath = document.getElementById('settingsHostSshPath').value.trim();
     const gitPath = document.getElementById('settingsGitPath').value.trim();
     const autoRefresh = parseInt(document.getElementById('settingsAutoRefresh').value);
     const maxLogEntries = parseInt(document.getElementById('settingsMaxLogEntries').value);
+    const cacheTtl = parseInt(document.getElementById('settingsCacheTtl').value);
     
     if (!hostGitPath) {
         showToast('Host git repository path is required', 'error');
+        return;
+    }
+    
+    if (!hostSshPath) {
+        showToast('Host SSH keys path is required', 'error');
         return;
     }
     
@@ -1148,25 +1220,42 @@ async function handleSettingsSubmit(event) {
         return;
     }
     
+    if (cacheTtl < 30 || cacheTtl > 3600) {
+        showToast('Cache TTL must be between 30 and 3600 seconds', 'error');
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_BASE}/settings`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 host_git_path: hostGitPath,
+                host_ssh_path: hostSshPath,
                 git_path: gitPath,
                 auto_refresh_interval: autoRefresh,
-                max_activity_log_entries: maxLogEntries
+                max_activity_log_entries: maxLogEntries,
+                cache_ttl_seconds: cacheTtl
             })
         });
         
         const data = await response.json();
         
         if (data.success) {
-            const hostPathChanged = hostGitPath !== document.getElementById('currentHostGitPath').textContent;
+            const hostGitPathChanged = hostGitPath !== document.getElementById('currentHostGitPath').textContent;
+            const hostSshPathChanged = hostSshPath !== document.getElementById('currentHostSshPath').textContent;
             
-            if (hostPathChanged) {
-                showToast('Settings saved. IMPORTANT: Update HOST_GIT_PATH in .env or docker-compose.yml and restart the container for the new path to take effect.', 'warning', 10000);
+            if (hostGitPathChanged || hostSshPathChanged) {
+                let message = 'Settings saved. IMPORTANT: ';
+                if (hostGitPathChanged) {
+                    message += 'Update HOST_GIT_PATH ';
+                }
+                if (hostSshPathChanged) {
+                    if (hostGitPathChanged) message += 'and ';
+                    message += 'Update HOST_SSH_PATH ';
+                }
+                message += 'in .env or docker-compose.yml and restart the container for the changes to take effect.';
+                showToast(message, 'warning', 10000);
             } else {
                 showToast('Settings saved successfully. Reloading repositories...', 'success');
             }

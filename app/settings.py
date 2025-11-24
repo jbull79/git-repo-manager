@@ -13,8 +13,10 @@ class Settings:
         self.default_settings = {
             "git_path": "/git",  # Container path
             "host_git_path": os.getenv("HOST_GIT_PATH", "~/git"),  # Host path (from env or default)
+            "host_ssh_path": os.getenv("HOST_SSH_PATH", "~/.ssh"),  # Host SSH keys path (from env or default)
             "auto_refresh_interval": 30,
             "max_activity_log_entries": 1000,
+            "cache_ttl_seconds": 600,  # Cache TTL in seconds (default: 10 minutes)
             "theme": "light"
         }
         self.settings = self._load_settings()

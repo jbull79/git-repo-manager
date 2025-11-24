@@ -160,16 +160,43 @@ The container runs as a non-root user (`appuser`) for security. If you encounter
 
 ### SSH Keys (for private repositories)
 
-If you need to pull from private repositories that require SSH authentication, you'll need to mount your SSH keys. Update `docker-compose.yml`:
+**SSH keys are now automatically mounted** in the default `docker-compose.yml` configuration. This allows the container to authenticate with private git repositories using your host's SSH keys.
+
+If you're using `docker-compose.pull.yml` or a custom setup, ensure these volumes are mounted:
 
 ```yaml
 volumes:
-  - ~/git:/git:ro
   - ~/.ssh:/home/appuser/.ssh:ro
   - ~/.gitconfig:/home/appuser/.gitconfig:ro
 ```
 
-**Note**: Make sure your SSH keys have appropriate permissions (600 for private keys).
+**Important**: Ensure your SSH keys have the correct permissions on the host:
+
+```bash
+# Check and fix SSH key permissions
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_rsa          # or id_ed25519, etc.
+chmod 644 ~/.ssh/id_rsa.pub      # or id_ed25519.pub, etc.
+chmod 644 ~/.ssh/known_hosts
+```
+
+**Troubleshooting SSH Authentication**:
+
+If you get "exit code 128" or "could not read from remote repository" errors:
+
+1. **Verify SSH keys are mounted**: Check container logs or exec into the container:
+   ```bash
+   docker exec -it git-repo-manager ls -la /home/appuser/.ssh
+   ```
+
+2. **Test SSH connection from container**:
+   ```bash
+   docker exec -it git-repo-manager ssh -T git@github.com
+   ```
+
+3. **Check SSH key permissions on host** (must be 600 for private keys)
+
+4. **Verify git remote URLs**: Ensure your repos use SSH URLs (`git@github.com:user/repo.git`) not HTTPS URLs
 
 ## API Endpoints
 

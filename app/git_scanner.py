@@ -184,8 +184,23 @@ class GitScanner:
             print(f"Error getting commit history for {repo_name}: {e}")
             return []
     
-    def scan_all_repos(self) -> List[Dict]:
-        """Scan all repositories and return their info."""
+    def scan_all_repos(self, force_refresh: bool = False, cache_manager=None) -> List[Dict]:
+        """Scan all repositories and return their info.
+        
+        Args:
+            force_refresh: If True, bypass cache and force fresh scan
+            cache_manager: Optional CacheManager instance for caching
+            
+        Returns:
+            List of repository information dictionaries
+        """
+        # Check cache first if available and not forcing refresh
+        if cache_manager and not force_refresh:
+            cached_data = cache_manager.get('all')
+            if cached_data is not None:
+                return cached_data
+        
+        # Perform fresh scan
         repos = self.find_repositories()
         repo_info = []
         
@@ -193,6 +208,10 @@ class GitScanner:
             info = self.get_repo_info(repo_name)
             if info:
                 repo_info.append(info)
+        
+        # Store in cache if cache manager available
+        if cache_manager:
+            cache_manager.set('all', repo_info)
         
         return repo_info
 
