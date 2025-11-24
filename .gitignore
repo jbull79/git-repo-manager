@@ -1,0 +1,31 @@
+# Data directory - contains persistent application data
+data/*.json
+data/*.log
+
+# Keep the directory but ignore data files
+!data/.gitkeep
+
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+

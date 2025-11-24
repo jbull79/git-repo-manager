@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  git-repo-manager:
+    build: .
+    container_name: git-repo-manager
+    ports:
+      - "5010:5010"
+    volumes:
+      - ${HOST_GIT_PATH:-~/git}:/git
+      - ./data:/app/data
+    environment:
+      - FLASK_ENV=production
+      - HOST_GIT_PATH=${HOST_GIT_PATH:-~/git}
+    restart: unless-stopped
+    # Note: For git pull operations on private repos, you may need to mount SSH keys
+    # Uncomment the following lines if you need SSH access for private repos:
+    #   - ~/.ssh:/home/appuser/.ssh:ro
+    #   - ~/.gitconfig:/home/appuser/.gitconfig:ro
+

@@ -1,0 +1,4 @@
+# This directory stores persistent data for the Git Repository Manager
+# Schedules, activity logs, and repository groups are stored here
+# This directory is mounted as a volume in docker-compose.yml
+
