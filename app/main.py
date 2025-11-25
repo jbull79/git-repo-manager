@@ -9,6 +9,9 @@ from app.repo_groups import RepoGroups
 from app.settings import Settings
 from app.cache import CacheManager
 
+# Application version
+APP_VERSION = "1.0.1"
+
 # Get the base directory (parent of app/)
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -55,7 +58,7 @@ repo_groups = RepoGroups(config_file=f"{DATA_DIR}/repo_groups.json")
 @app.route('/')
 def index():
     """Serve the main web interface."""
-    return render_template('index.html')
+    return render_template('index.html', version=APP_VERSION)
 
 
 @app.route('/api/health')

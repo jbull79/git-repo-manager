@@ -1368,6 +1368,9 @@ async function openNewScheduleForm() {
 }
 
 async function openScheduleForm(schedule = null) {
+    // Set currentEditingSchedule before doing anything else
+    currentEditingSchedule = schedule;
+    
     document.getElementById('scheduleFormTitle').textContent = schedule ? 'Edit Schedule' : 'New Schedule';
     document.getElementById('scheduleFormModal').classList.remove('hidden');
     
@@ -1413,39 +1416,50 @@ async function loadReposForSchedule() {
         const reposData = await reposResponse.json();
         const groupsData = await groupsResponse.json();
         
-        if (reposData.success) {
-            allRepos = reposData.repos;
+        // Get selected repos and groups from current editing schedule
+        const selectedRepos = currentEditingSchedule && currentEditingSchedule.repos ? currentEditingSchedule.repos : [];
+        const selectedGroups = currentEditingSchedule && currentEditingSchedule.groups ? currentEditingSchedule.groups : [];
+        
+        if (reposData.success && reposData.repos) {
             const container = document.getElementById('repoCheckboxes');
-            container.innerHTML = reposData.repos.map(repo => `
-                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
-                    <input type="checkbox" value="${escapeHtml(repo.name)}" 
-                           ${currentEditingSchedule && currentEditingSchedule.repos && currentEditingSchedule.repos.includes(repo.name) ? 'checked' : ''}
-                           class="schedule-repo-checkbox w-4 h-4 text-blue-600 rounded">
-                    <span class="text-gray-700 dark:text-gray-300">${escapeHtml(repo.name)}</span>
-                </label>
-            `).join('');
+            if (container) {
+                container.innerHTML = reposData.repos.map(repo => {
+                    const isSelected = selectedRepos.includes(repo.name);
+                    return `
+                        <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
+                            <input type="checkbox" value="${escapeHtml(repo.name)}" 
+                                   ${isSelected ? 'checked' : ''}
+                                   class="schedule-repo-checkbox w-4 h-4 text-blue-600 rounded">
+                            <span class="text-gray-700 dark:text-gray-300">${escapeHtml(repo.name)}</span>
+                        </label>
+                    `;
+                }).join('');
+            }
         }
         
-        if (groupsData.success) {
+        if (groupsData.success && groupsData.groups) {
             const container = document.getElementById('groupCheckboxes');
-            container.innerHTML = groupsData.groups.map(group => {
-                const isSelected = currentEditingSchedule && currentEditingSchedule.groups && currentEditingSchedule.groups.includes(group.name);
-                return `
-                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
-                    <input type="checkbox" value="group:${escapeHtml(group.name)}" 
-                           ${isSelected ? 'checked' : ''}
-                           class="schedule-group-checkbox w-4 h-4 text-pink-600 rounded">
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 rounded-full" style="background-color: ${group.color || '#3B82F6'}"></div>
-                        <span class="text-gray-700 dark:text-gray-300 font-medium">${escapeHtml(group.name)}</span>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">(${(group.repos || []).length} repos)</span>
-                    </div>
-                </label>
-            `;
-            }).join('');
+            if (container) {
+                container.innerHTML = groupsData.groups.map(group => {
+                    const isSelected = selectedGroups.includes(group.name);
+                    return `
+                        <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
+                            <input type="checkbox" value="group:${escapeHtml(group.name)}" 
+                                   ${isSelected ? 'checked' : ''}
+                                   class="schedule-group-checkbox w-4 h-4 text-pink-600 rounded">
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full" style="background-color: ${group.color || '#3B82F6'}"></div>
+                                <span class="text-gray-700 dark:text-gray-300 font-medium">${escapeHtml(group.name)}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">(${(group.repos || []).length} repos)</span>
+                            </div>
+                        </label>
+                    `;
+                }).join('');
+            }
         }
     } catch (error) {
-        showToast('Error loading repositories/groups', 'error');
+        console.error('Error loading repositories/groups for schedule:', error);
+        showToast('Error loading repositories/groups: ' + error.message, 'error');
     }
 }
 
