@@ -204,7 +204,23 @@ def list_repo_names():
 def repo_status(repo_name):
     """Get detailed status for a specific repository."""
     try:
-        info = scanner.get_repo_info(repo_name)
+        # Check for force_refresh parameter
+        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+        
+        # Check cache first if not forcing refresh
+        info = None
+        if not force_refresh and cache_manager:
+            cached_info = cache_manager.get(repo_name)
+            if cached_info is not None:
+                info = cached_info
+        
+        # If not in cache or forcing refresh, get fresh info
+        if info is None:
+            info = scanner.get_repo_info(repo_name)
+            if info and cache_manager:
+                # Cache the result
+                cache_manager.set(repo_name, info)
+        
         if info is None:
             return jsonify({
                 "success": False,
@@ -234,6 +250,17 @@ def pull_repo(repo_name):
     try:
         result = operations.pull_repo(repo_name)
         status_code = 200 if result["success"] else 400
+        
+        # If pull was successful, get updated repo info and include it in response
+        if result["success"]:
+            # Get fresh repo info (bypasses cache since we just invalidated it)
+            repo_info = scanner.get_repo_info(repo_name)
+            if repo_info:
+                # Add groups and tags
+                repo_info['groups'] = repo_groups.get_repo_groups(repo_name)
+                repo_info['tags'] = repo_groups.get_tags(repo_name)
+                result['repo'] = repo_info
+        
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({

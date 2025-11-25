@@ -770,12 +770,13 @@ function createRepoCard(repo) {
     const tags = (repo.tags || []).map(t => `<span class="px-2 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 text-xs rounded">${escapeHtml(t)}</span>`).join('');
     
     const isSelected = selectedRepos.has(repo.name);
-    const bulkCheckbox = document.getElementById('bulkSelectToggle')?.checked 
-        ? `<input type="checkbox" class="bulk-checkbox w-4 h-4 text-blue-600 rounded" data-repo="${escapeHtml(repo.name)}" ${isSelected ? 'checked' : ''}>`
+    const bulkSelectEnabled = document.getElementById('bulkSelectToggle')?.checked;
+    const bulkCheckbox = bulkSelectEnabled
+        ? `<input type="checkbox" id="bulkCheckbox-${escapeHtml(repo.name)}" class="bulk-checkbox w-4 h-4 text-blue-600 rounded" data-repo="${escapeHtml(repo.name)}" ${isSelected ? 'checked' : ''}>`
         : '';
     
     return `
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 repo-card${updateClass} transition-all border border-gray-200 dark:border-gray-700">
+        <div id="repoCard-${escapeHtml(repo.name)}" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 repo-card${updateClass} transition-all border border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center gap-3 flex-1 min-w-0">
                     ${bulkCheckbox}
@@ -907,10 +908,13 @@ function toggleBranchList(repoName) {
 // Pull single repository
 async function pullRepo(repoName) {
     const btn = document.getElementById(`updateBtn-${repoName}`);
-    const originalText = btn.innerHTML;
+    const originalText = btn ? btn.innerHTML : '';
     
-    btn.classList.add('btn-loading');
-    btn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Updating...';
+    if (btn) {
+        btn.classList.add('btn-loading');
+        btn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Updating...';
+        btn.disabled = true;
+    }
     
     try {
         const response = await fetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/pull`, {
@@ -920,16 +924,112 @@ async function pullRepo(repoName) {
         
         if (data.success) {
             showToast(`Successfully updated ${repoName}`, 'success');
-            // Reload repositories with force refresh to bypass cache and show updated status
-            setTimeout(() => loadRepositories(true), 1000);
+            
+            // Update only this specific repo in the UI if we have the updated data
+            if (data.repo) {
+                updateSingleRepo(data.repo);
+            } else {
+                // Fallback: fetch just this repo's status if not included in response
+                await refreshSingleRepo(repoName);
+            }
         } else {
             showToast(`Failed to update ${repoName}: ${data.error}`, 'error');
         }
     } catch (error) {
         showToast(`Error updating ${repoName}: ${error.message}`, 'error');
     } finally {
-        btn.classList.remove('btn-loading');
-        btn.innerHTML = originalText;
+        if (btn) {
+            btn.classList.remove('btn-loading');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+}
+
+// Update a single repository card in the UI
+function updateSingleRepo(repo) {
+    // Find the existing repo in allReposData and update it
+    const index = allReposData.findIndex(r => r.name === repo.name);
+    if (index !== -1) {
+        allReposData[index] = repo;
+    } else {
+        // If not found, add it
+        allReposData.push(repo);
+    }
+    
+    // Find the card element and replace it
+    const cardId = `repoCard-${repo.name}`;
+    const existingCard = document.getElementById(cardId);
+    
+    if (existingCard) {
+        // Replace the card HTML
+        const newCardHtml = createRepoCard(repo);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newCardHtml;
+        const newCard = tempDiv.firstElementChild;
+        
+        if (newCard) {
+            existingCard.replaceWith(newCard);
+            
+            // Re-attach event listeners
+            const updateBtn = document.getElementById(`updateBtn-${repo.name}`);
+            if (updateBtn) {
+                updateBtn.addEventListener('click', () => pullRepo(repo.name));
+            }
+            
+            const branchToggle = document.getElementById(`branchToggle-${repo.name}`);
+            if (branchToggle) {
+                branchToggle.addEventListener('click', () => toggleBranchList(repo.name));
+            }
+            
+            const checkbox = document.getElementById(`repoCheckbox-${repo.name}`);
+            if (checkbox) {
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        selectedRepos.add(repo.name);
+                    } else {
+                        selectedRepos.delete(repo.name);
+                    }
+                });
+            }
+            
+            // Re-attach bulk checkbox if bulk selection is enabled
+            const bulkCheckbox = document.getElementById(`bulkCheckbox-${repo.name}`);
+            if (bulkCheckbox) {
+                bulkCheckbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        selectedRepos.add(repo.name);
+                    } else {
+                        selectedRepos.delete(repo.name);
+                    }
+                });
+            }
+        }
+    } else {
+        // Card doesn't exist, re-render all repos (shouldn't happen often)
+        renderRepositories(allReposData);
+    }
+    
+    // Update count badge
+    const countBadge = document.getElementById('repoCountBadge');
+    if (countBadge) {
+        countBadge.textContent = allReposData.length;
+    }
+}
+
+// Refresh a single repository's data from the server
+async function refreshSingleRepo(repoName) {
+    try {
+        const response = await fetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/status?force_refresh=true`);
+        const data = await response.json();
+        
+        if (data.success && data.repo) {
+            updateSingleRepo(data.repo);
+        }
+    } catch (error) {
+        console.error(`Error refreshing repo ${repoName}:`, error);
+        // Fallback to full reload if single refresh fails
+        loadRepositories(true);
     }
 }
 

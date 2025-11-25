@@ -71,10 +71,9 @@ class GitOperations:
                     "updates": len(pull_info) if pull_info else 0,
                     "branch": current_branch
                 }
-                # Invalidate cache for this repo and 'all' cache
+                # Invalidate cache for this repo only (not 'all' cache to preserve other repos)
                 if self.cache_manager:
                     self.cache_manager.invalidate(repo_name)
-                    self.cache_manager.invalidate('all')
                 # Log activity
                 if self.activity_log:
                     self.activity_log.log_operation(
