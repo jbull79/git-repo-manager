@@ -455,7 +455,8 @@ def delete_schedule(schedule_id):
 def get_stats():
     """Get overall statistics."""
     try:
-        repos = scanner.scan_all_repos()
+        # Use cached data if available for faster stats
+        repos = scanner.scan_all_repos(force_refresh=False, cache_manager=cache_manager)
         
         status_counts = {
             'behind': 0,

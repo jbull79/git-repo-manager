@@ -1546,16 +1546,40 @@ async function loadStats() {
         const statsData = await statsResponse.json();
         const cacheData = await cacheResponse.json();
         
+        console.log('Stats data:', statsData); // Debug log
+        console.log('Cache data:', cacheData); // Debug log
+        
         if (statsData.success) {
             renderStats(statsData.stats, cacheData.success ? cacheData.stats : null);
+        } else {
+            console.error('Failed to load stats:', statsData.error);
+            const container = document.getElementById('statsContent');
+            if (container) {
+                container.innerHTML = `<div class="text-center py-8 text-red-500">Error loading statistics: ${statsData.error || 'Unknown error'}</div>`;
+            }
         }
     } catch (error) {
         console.error('Error loading stats:', error);
+        const container = document.getElementById('statsContent');
+        if (container) {
+            container.innerHTML = `<div class="text-center py-8 text-red-500">Error loading statistics: ${error.message}</div>`;
+        }
     }
 }
 
 function renderStats(stats, cacheStats) {
     const container = document.getElementById('statsContent');
+    if (!container) {
+        console.error('statsContent element not found!');
+        return;
+    }
+    
+    if (!stats) {
+        console.error('No stats data provided');
+        container.innerHTML = '<div class="text-center py-8 text-gray-500 dark:text-gray-400">No statistics available</div>';
+        return;
+    }
+    
     const statusCounts = stats.status_counts || {};
     
     container.innerHTML = `
