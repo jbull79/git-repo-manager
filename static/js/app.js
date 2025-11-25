@@ -1537,14 +1537,41 @@ async function handleScheduleSubmit(event) {
 
 // Statistics Dashboard
 async function loadStats() {
+    const container = document.getElementById('statsContent');
+    if (!container) {
+        console.error('statsContent element not found!');
+        return;
+    }
+    
+    // Show loading state
+    container.innerHTML = '<div class="text-center py-8 text-gray-500 dark:text-gray-400">Loading statistics...</div>';
+    
     try {
-        // Load both stats and cache stats
-        const [statsResponse, cacheResponse] = await Promise.all([
-            fetch(`${API_BASE}/stats`),
-            fetch(`${API_BASE}/cache/stats`)
-        ]);
+        // Load both stats and cache stats with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        let statsResponse, cacheResponse;
+        try {
+            [statsResponse, cacheResponse] = await Promise.all([
+                fetch(`${API_BASE}/stats`, { signal: controller.signal }),
+                fetch(`${API_BASE}/cache/stats`, { signal: controller.signal })
+            ]);
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                throw new Error('Request timed out. Please try again.');
+            }
+            throw fetchError;
+        }
+        
+        if (!statsResponse.ok) {
+            throw new Error(`HTTP error! status: ${statsResponse.status}`);
+        }
+        
         const statsData = await statsResponse.json();
-        const cacheData = await cacheResponse.json();
+        const cacheData = cacheResponse.ok ? await cacheResponse.json() : { success: false };
         
         console.log('Stats data:', statsData); // Debug log
         console.log('Cache data:', cacheData); // Debug log
@@ -1553,17 +1580,15 @@ async function loadStats() {
             renderStats(statsData.stats, cacheData.success ? cacheData.stats : null);
         } else {
             console.error('Failed to load stats:', statsData.error);
-            const container = document.getElementById('statsContent');
-            if (container) {
-                container.innerHTML = `<div class="text-center py-8 text-red-500">Error loading statistics: ${statsData.error || 'Unknown error'}</div>`;
-            }
+            container.innerHTML = `<div class="text-center py-8 text-red-500 dark:text-red-400">Error loading statistics: ${statsData.error || 'Unknown error'}</div>`;
         }
     } catch (error) {
         console.error('Error loading stats:', error);
-        const container = document.getElementById('statsContent');
-        if (container) {
-            container.innerHTML = `<div class="text-center py-8 text-red-500">Error loading statistics: ${error.message}</div>`;
-        }
+        const errorMessage = error.message || 'Failed to fetch statistics. Please check your connection and try again.';
+        container.innerHTML = `<div class="text-center py-8 text-red-500 dark:text-red-400">
+            <div class="mb-2">Error loading statistics</div>
+            <div class="text-sm text-gray-600 dark:text-gray-400">${errorMessage}</div>
+        </div>`;
     }
 }
 

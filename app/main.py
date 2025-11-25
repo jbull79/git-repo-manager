@@ -10,7 +10,7 @@ from app.settings import Settings
 from app.cache import CacheManager
 
 # Application version
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 # Get the base directory (parent of app/)
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -456,7 +456,9 @@ def get_stats():
     """Get overall statistics."""
     try:
         # Use cached data if available for faster stats
-        repos = scanner.scan_all_repos(force_refresh=False, cache_manager=cache_manager)
+        # Don't use batch processing for stats - just get cached data or do a quick scan
+        repos = scanner.scan_all_repos(force_refresh=False, cache_manager=cache_manager, 
+                                      batch_size=None, parallel_workers=None)
         
         status_counts = {
             'behind': 0,
@@ -467,13 +469,14 @@ def get_stats():
             'error': 0
         }
         
-        total_repos = len(repos)
-        repos_with_changes = sum(1 for r in repos if r.get('is_dirty', False))
+        total_repos = len(repos) if repos else 0
+        repos_with_changes = sum(1 for r in repos if r.get('is_dirty', False)) if repos else 0
         
-        for repo in repos:
-            status = repo.get('status', {}).get('state', 'unknown')
-            if status in status_counts:
-                status_counts[status] += 1
+        if repos:
+            for repo in repos:
+                status = repo.get('status', {}).get('state', 'unknown')
+                if status in status_counts:
+                    status_counts[status] += 1
         
         activity_stats = activity_log.get_stats()
         
@@ -487,6 +490,9 @@ def get_stats():
             }
         })
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error in get_stats: {error_trace}")
         return jsonify({
             "success": False,
             "error": str(e)
