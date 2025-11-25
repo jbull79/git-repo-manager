@@ -258,36 +258,67 @@ class GitScanner:
         return repo_info
     
     def scan_repos_batch(self, repo_names: List[str], force_refresh: bool = False, 
-                        cache_manager=None) -> List[Dict]:
+                        cache_manager=None, parallel_workers: int = None) -> List[Dict]:
         """Scan a specific batch of repositories.
         
         Args:
             repo_names: List of repository names to scan
             force_refresh: If True, bypass cache and force fresh scan
             cache_manager: Optional CacheManager instance for caching
+            parallel_workers: Number of parallel workers for processing (None = sequential)
             
         Returns:
             List of repository information dictionaries
         """
         repo_info = []
         
-        for repo_name in repo_names:
-            # Check individual cache first
-            if cache_manager and not force_refresh:
+        # Check cache first for all repos
+        repos_to_scan = []
+        if cache_manager and not force_refresh:
+            for repo_name in repo_names:
                 cached_data = cache_manager.get(repo_name)
                 if cached_data is not None:
                     repo_info.append(cached_data)
-                    continue
-            
-            # Get fresh info
-            info = self.get_repo_info(repo_name)
-            if info:
-                # Add groups and tags (will be added by main.py, but we can add here too)
-                repo_info.append(info)
+                else:
+                    repos_to_scan.append(repo_name)
+        else:
+            repos_to_scan = repo_names
+        
+        # If no repos to scan, return cached results
+        if not repos_to_scan:
+            return repo_info
+        
+        # Process remaining repos in parallel if workers specified
+        if parallel_workers and parallel_workers > 1 and len(repos_to_scan) > 1:
+            with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+                future_to_repo = {
+                    executor.submit(self.get_repo_info, repo_name): repo_name 
+                    for repo_name in repos_to_scan
+                }
                 
-                # Cache individual repo if cache manager available
-                if cache_manager:
-                    cache_manager.set(repo_name, info)
+                for future in as_completed(future_to_repo):
+                    repo_name = future_to_repo[future]
+                    try:
+                        info = future.result()
+                        if info:
+                            repo_info.append(info)
+                            # Cache individual repo if cache manager available
+                            if cache_manager:
+                                cache_manager.set(repo_name, info)
+                    except Exception as e:
+                        repo_info.append({
+                            "name": repo_name,
+                            "error": str(e)
+                        })
+        else:
+            # Sequential processing
+            for repo_name in repos_to_scan:
+                info = self.get_repo_info(repo_name)
+                if info:
+                    repo_info.append(info)
+                    # Cache individual repo if cache manager available
+                    if cache_manager:
+                        cache_manager.set(repo_name, info)
         
         return repo_info
 

@@ -159,11 +159,15 @@ def list_repos_batch():
         # Get batch of repo names
         batch_repo_names = all_repo_names[start_idx:end_idx]
         
-        # Scan this batch
+        # Get parallel workers setting for batch processing
+        parallel_workers = settings.get("parallel_workers", 10)
+        
+        # Scan this batch with parallel processing
         repos = scanner.scan_repos_batch(
             batch_repo_names, 
             force_refresh=force_refresh, 
-            cache_manager=cache_manager
+            cache_manager=cache_manager,
+            parallel_workers=parallel_workers
         )
         
         # Automatically sync behind repos to default "Behind" group
