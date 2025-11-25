@@ -110,7 +110,7 @@ def list_repos():
             "success": True,
             "repos": repos,
             "count": len(repos)
-        })
+        }), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         return jsonify({
             "success": False,
@@ -181,12 +181,17 @@ def pull_all_repos():
 def list_schedules():
     """List all schedules."""
     try:
+        # Always get fresh schedules from the manager (no caching)
         schedules = schedule_manager.get_schedules()
+        # Ensure we return a list, not a dict
+        if not isinstance(schedules, list):
+            schedules = list(schedules) if schedules else []
         return jsonify({
             "success": True,
             "schedules": schedules
         })
     except Exception as e:
+        print(f"Error listing schedules: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -200,24 +205,38 @@ def create_schedule():
         data = request.get_json()
         name = data.get('name')
         repos = data.get('repos', [])
+        groups = data.get('groups', [])
         schedule_type = data.get('type', 'daily')
         value = data.get('value')
         
-        if not name or not repos:
+        if not name or (not repos and not groups):
             return jsonify({
                 "success": False,
-                "error": "Name and repos are required"
+                "error": "Name and at least one repository or group is required"
             }), 400
+        
+        # Resolve groups to repositories
+        resolved_repos = list(repos)  # Start with direct repos
+        for group_name in groups:
+            # Find the group and add its repositories
+            all_groups = repo_groups.get_groups()
+            group = next((g for g in all_groups if g['name'] == group_name), None)
+            if group:
+                resolved_repos.extend(group.get('repos', []))
+        
+        # Remove duplicates while preserving order
+        resolved_repos = list(dict.fromkeys(resolved_repos))
         
         schedule = schedule_manager.create_schedule(
             name=name,
-            repos=repos,
+            repos=resolved_repos,  # Store resolved repos
             schedule_type=schedule_type,
             value=value,
             hour=data.get('hour', 0),
             minute=data.get('minute', 0),
             day_of_week=data.get('day_of_week', 'mon'),
-            cron=data.get('cron')
+            cron=data.get('cron'),
+            groups=groups  # Also store groups for display
         )
         
         return jsonify({
@@ -236,6 +255,23 @@ def update_schedule(schedule_id):
     """Update an existing schedule."""
     try:
         data = request.get_json()
+        repos = data.get('repos', [])
+        groups = data.get('groups', [])
+        
+        # Resolve groups to repositories if groups are provided
+        if groups:
+            resolved_repos = list(repos)  # Start with direct repos
+            for group_name in groups:
+                # Find the group and add its repositories
+                all_groups = repo_groups.get_groups()
+                group = next((g for g in all_groups if g['name'] == group_name), None)
+                if group:
+                    resolved_repos.extend(group.get('repos', []))
+            
+            # Remove duplicates while preserving order
+            resolved_repos = list(dict.fromkeys(resolved_repos))
+            data['repos'] = resolved_repos
+        
         schedule = schedule_manager.update_schedule(schedule_id, **data)
         
         if schedule is None:
@@ -413,6 +449,57 @@ def delete_group(group_id):
     """Delete a group."""
     try:
         success = repo_groups.delete_group(group_id)
+        if not success:
+            return jsonify({
+                "success": False,
+                "error": "Group not found"
+            }), 404
+        
+        return jsonify({
+            "success": True
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/groups/<group_id>/repos', methods=['POST'])
+def add_repo_to_group(group_id):
+    """Add a repository to a group."""
+    try:
+        data = request.get_json()
+        repo_name = data.get('repo')
+        
+        if not repo_name:
+            return jsonify({
+                "success": False,
+                "error": "Repository name is required"
+            }), 400
+        
+        success = repo_groups.add_repo_to_group(group_id, repo_name)
+        if not success:
+            return jsonify({
+                "success": False,
+                "error": "Group not found"
+            }), 404
+        
+        return jsonify({
+            "success": True
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/groups/<group_id>/repos/<repo_name>', methods=['DELETE'])
+def remove_repo_from_group(group_id, repo_name):
+    """Remove a repository from a group."""
+    try:
+        success = repo_groups.remove_repo_from_group(group_id, repo_name)
         if not success:
             return jsonify({
                 "success": False,

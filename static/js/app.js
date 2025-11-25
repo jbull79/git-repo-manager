@@ -10,22 +10,27 @@ let isDarkMode = localStorage.getItem('darkMode') === 'true';
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    initializeDarkMode();
-    initializeEventListeners();
-    loadRepositories();
-    loadStats();
-    loadGroupsAndTags();
-    
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.target.matches('input, textarea, select')) {
-            e.preventDefault();
-            loadRepositories();
-        }
-        if (e.key === 'Escape') {
-            closeAllModals();
-        }
-    });
+    try {
+        initializeDarkMode();
+        initializeEventListeners();
+        loadRepositories();
+        loadStats();
+        loadGroupsAndTags();
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.target.matches('input, textarea, select')) {
+                e.preventDefault();
+                loadRepositories();
+            }
+            if (e.key === 'Escape') {
+                closeAllModals();
+            }
+        });
+    } catch (error) {
+        console.error('Error initializing application:', error);
+        showToast('Error initializing application: ' + error.message, 'error');
+    }
 });
 
 // Initialize dark mode
@@ -57,69 +62,305 @@ function toggleDarkMode() {
 }
 
 function closeAllModals() {
-    document.getElementById('schedulesModal').classList.add('hidden');
-    document.getElementById('scheduleFormModal').classList.add('hidden');
-    document.getElementById('activityModal').classList.add('hidden');
-    document.getElementById('repoDetailsModal').classList.add('hidden');
-    document.getElementById('statsDashboard').classList.add('hidden');
-    document.getElementById('settingsModal').classList.add('hidden');
+    const modals = [
+        'schedulesModal',
+        'scheduleFormModal',
+        'activityModal',
+        'repoDetailsModal',
+        'statsDashboard',
+        'settingsModal',
+        'groupsModal',
+        'groupFormModal',
+        'cacheDetailsModal'
+    ];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (modal) modal.classList.add('hidden');
+    });
 }
 
 // Event listeners
 function initializeEventListeners() {
-    document.getElementById('refreshBtn').addEventListener('click', () => {
-        loadRepositories(true); // Force refresh bypasses cache
-    });
-    
-    document.getElementById('clearCacheBtn').addEventListener('click', async () => {
-        try {
-            const response = await fetch(`${API_BASE}/cache/clear`, { method: 'POST' });
-            const data = await response.json();
-            if (data.success) {
-                showToast('Cache cleared successfully', 'success');
-                // Reload repositories after clearing cache
-                loadRepositories(true);
-            } else {
-                showToast('Failed to clear cache: ' + (data.error || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            showToast('Error clearing cache: ' + error.message, 'error');
+    try {
+        const refreshBtn = document.getElementById('refreshBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                loadRepositories(true); // Force refresh bypasses cache
+            });
         }
-    });
-    document.getElementById('pullAllBtn').addEventListener('click', pullAllRepos);
-    document.getElementById('autoRefreshToggle').addEventListener('change', toggleAutoRefresh);
-    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-    document.getElementById('statsBtn').addEventListener('click', toggleStatsDashboard);
-    document.getElementById('closeStats').addEventListener('click', () => document.getElementById('statsDashboard').classList.add('hidden'));
-    document.getElementById('activityBtn').addEventListener('click', openActivityModal);
-    document.getElementById('closeActivityModal').addEventListener('click', () => document.getElementById('activityModal').classList.add('hidden'));
-    document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
-    document.getElementById('closeSettingsModal').addEventListener('click', () => document.getElementById('settingsModal').classList.add('hidden'));
-    document.getElementById('cancelSettingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.add('hidden'));
-    document.getElementById('resetSettingsBtn').addEventListener('click', resetSettings);
-    document.getElementById('settingsForm').addEventListener('submit', handleSettingsSubmit);
-    
-    // Search and filter
-    document.getElementById('searchInput').addEventListener('input', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    document.getElementById('groupFilter').addEventListener('change', applyFilters);
-    document.getElementById('tagFilter').addEventListener('change', applyFilters);
-    document.getElementById('sortSelect').addEventListener('change', applyFilters);
-    
-    // Bulk selection
-    document.getElementById('bulkSelectToggle').addEventListener('change', toggleBulkSelection);
-    document.getElementById('bulkUpdateBtn').addEventListener('click', bulkUpdateSelected);
-    document.getElementById('bulkGroupBtn').addEventListener('click', bulkAddToGroup);
-    document.getElementById('bulkTagBtn').addEventListener('click', bulkAddTag);
-    
-    // Schedule management
-    document.getElementById('schedulesBtn').addEventListener('click', openSchedulesModal);
-    document.getElementById('closeSchedulesModal').addEventListener('click', closeSchedulesModal);
-    document.getElementById('newScheduleBtn').addEventListener('click', openNewScheduleForm);
-    document.getElementById('closeScheduleForm').addEventListener('click', closeScheduleForm);
-    document.getElementById('cancelScheduleForm').addEventListener('click', closeScheduleForm);
-    document.getElementById('scheduleForm').addEventListener('submit', handleScheduleSubmit);
-    document.getElementById('scheduleType').addEventListener('change', handleScheduleTypeChange);
+        
+        const clearCacheBtn = document.getElementById('clearCacheBtn');
+        if (clearCacheBtn) {
+            clearCacheBtn.addEventListener('click', async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/cache/clear`, { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast('Cache cleared successfully', 'success');
+                        // Reload repositories after clearing cache
+                        loadRepositories(true);
+                    } else {
+                        showToast('Failed to clear cache: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (error) {
+                    showToast('Error clearing cache: ' + error.message, 'error');
+                }
+            });
+        }
+        
+        const pullAllBtn = document.getElementById('pullAllBtn');
+        if (pullAllBtn) pullAllBtn.addEventListener('click', pullAllRepos);
+        
+        const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+        if (autoRefreshToggle) autoRefreshToggle.addEventListener('change', toggleAutoRefresh);
+        
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        if (darkModeToggle) darkModeToggle.addEventListener('click', toggleDarkMode);
+        
+        const statsBtn = document.getElementById('statsBtn');
+        if (statsBtn) statsBtn.addEventListener('click', toggleStatsDashboard);
+        
+        const closeStats = document.getElementById('closeStats');
+        if (closeStats) closeStats.addEventListener('click', () => {
+            const statsDashboard = document.getElementById('statsDashboard');
+            if (statsDashboard) statsDashboard.classList.add('hidden');
+        });
+        
+        const activityBtn = document.getElementById('activityBtn');
+        if (activityBtn) activityBtn.addEventListener('click', openActivityModal);
+        
+        const groupsBtn = document.getElementById('groupsBtn');
+        if (groupsBtn) groupsBtn.addEventListener('click', openGroupsModal);
+        
+        const closeGroupsModalBtn = document.getElementById('closeGroupsModal');
+        if (closeGroupsModalBtn) {
+            closeGroupsModalBtn.addEventListener('click', () => {
+                closeGroupsModal();
+            });
+        }
+        
+        // Close groups modal when clicking backdrop
+        const groupsModal = document.getElementById('groupsModal');
+        if (groupsModal) {
+            groupsModal.addEventListener('click', (e) => {
+                if (e.target === groupsModal) {
+                    closeGroupsModal();
+                }
+            });
+        }
+        
+        const newGroupBtn = document.getElementById('newGroupBtn');
+        if (newGroupBtn) newGroupBtn.addEventListener('click', openNewGroupForm);
+        
+        const closeGroupFormBtn = document.getElementById('closeGroupForm');
+        if (closeGroupFormBtn) {
+            closeGroupFormBtn.addEventListener('click', () => {
+                closeGroupForm();
+            });
+        }
+        
+        const cancelGroupBtn = document.getElementById('cancelGroupBtn');
+        if (cancelGroupBtn) {
+            cancelGroupBtn.addEventListener('click', () => {
+                closeGroupForm();
+            });
+        }
+        
+        // Close group form modal when clicking backdrop
+        const groupFormModal = document.getElementById('groupFormModal');
+        if (groupFormModal) {
+            groupFormModal.addEventListener('click', (e) => {
+                if (e.target === groupFormModal) {
+                    closeGroupForm();
+                }
+            });
+        }
+        
+        const groupForm = document.getElementById('groupForm');
+        if (groupForm) groupForm.addEventListener('submit', handleGroupSubmit);
+        
+        const closeActivityModalBtn = document.getElementById('closeActivityModal');
+        if (closeActivityModalBtn) {
+            closeActivityModalBtn.addEventListener('click', () => {
+                const activityModal = document.getElementById('activityModal');
+                if (activityModal) activityModal.classList.add('hidden');
+            });
+        }
+        
+        // Close activity modal when clicking backdrop
+        const activityModal = document.getElementById('activityModal');
+        if (activityModal) {
+            activityModal.addEventListener('click', (e) => {
+                if (e.target === activityModal) {
+                    activityModal.classList.add('hidden');
+                }
+            });
+        }
+        
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) settingsBtn.addEventListener('click', openSettingsModal);
+        
+        const closeSettingsModalBtn = document.getElementById('closeSettingsModal');
+        if (closeSettingsModalBtn) {
+            closeSettingsModalBtn.addEventListener('click', () => {
+                const settingsModal = document.getElementById('settingsModal');
+                if (settingsModal) settingsModal.classList.add('hidden');
+            });
+        }
+        
+        const closeCacheDetailsModalBtn = document.getElementById('closeCacheDetailsModal');
+        if (closeCacheDetailsModalBtn) {
+            closeCacheDetailsModalBtn.addEventListener('click', () => {
+                closeCacheDetailsModal();
+            });
+        }
+        
+        // Close cache details modal when clicking backdrop
+        const cacheDetailsModal = document.getElementById('cacheDetailsModal');
+        if (cacheDetailsModal) {
+            cacheDetailsModal.addEventListener('click', (e) => {
+                if (e.target === cacheDetailsModal) {
+                    closeCacheDetailsModal();
+                }
+            });
+        }
+        
+        const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+        if (cancelSettingsBtn) {
+            cancelSettingsBtn.addEventListener('click', () => {
+                const settingsModal = document.getElementById('settingsModal');
+                if (settingsModal) settingsModal.classList.add('hidden');
+            });
+        }
+        
+        // Close settings modal when clicking backdrop
+        const settingsModal = document.getElementById('settingsModal');
+        if (settingsModal) {
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    settingsModal.classList.add('hidden');
+                }
+            });
+        }
+        
+        const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+        if (resetSettingsBtn) resetSettingsBtn.addEventListener('click', resetSettings);
+        
+        const settingsForm = document.getElementById('settingsForm');
+        if (settingsForm) settingsForm.addEventListener('submit', handleSettingsSubmit);
+        
+        // Search and filter
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) searchInput.addEventListener('input', applyFilters);
+        
+        const statusFilter = document.getElementById('statusFilter');
+        if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+        
+        const groupFilter = document.getElementById('groupFilter');
+        if (groupFilter) groupFilter.addEventListener('change', applyFilters);
+        
+        const tagFilter = document.getElementById('tagFilter');
+        if (tagFilter) tagFilter.addEventListener('change', applyFilters);
+        
+        const sortSelect = document.getElementById('sortSelect');
+        if (sortSelect) sortSelect.addEventListener('change', applyFilters);
+        
+        // Bulk selection
+        const bulkSelectToggle = document.getElementById('bulkSelectToggle');
+        if (bulkSelectToggle) bulkSelectToggle.addEventListener('change', toggleBulkSelection);
+        
+        const bulkUpdateBtn = document.getElementById('bulkUpdateBtn');
+        if (bulkUpdateBtn) bulkUpdateBtn.addEventListener('click', bulkUpdateSelected);
+        
+        const bulkGroupBtn = document.getElementById('bulkGroupBtn');
+        if (bulkGroupBtn) bulkGroupBtn.addEventListener('click', bulkAddToGroup);
+        
+        const bulkTagBtn = document.getElementById('bulkTagBtn');
+        if (bulkTagBtn) bulkTagBtn.addEventListener('click', bulkAddTag);
+        
+        // Schedule management
+        const schedulesBtn = document.getElementById('schedulesBtn');
+        if (schedulesBtn) schedulesBtn.addEventListener('click', openSchedulesModal);
+        
+        const closeSchedulesModalBtn = document.getElementById('closeSchedulesModal');
+        if (closeSchedulesModalBtn) {
+            closeSchedulesModalBtn.addEventListener('click', () => {
+                closeSchedulesModal();
+            });
+        }
+        
+        // Close schedules modal when clicking backdrop
+        const schedulesModal = document.getElementById('schedulesModal');
+        if (schedulesModal) {
+            schedulesModal.addEventListener('click', (e) => {
+                if (e.target === schedulesModal) {
+                    closeSchedulesModal();
+                }
+            });
+        }
+        
+        const newScheduleBtn = document.getElementById('newScheduleBtn');
+        if (newScheduleBtn) newScheduleBtn.addEventListener('click', openNewScheduleForm);
+        
+        const closeScheduleFormBtn = document.getElementById('closeScheduleForm');
+        if (closeScheduleFormBtn) {
+            closeScheduleFormBtn.addEventListener('click', () => {
+                closeScheduleForm();
+            });
+        }
+        
+        const cancelScheduleFormBtn = document.getElementById('cancelScheduleForm');
+        if (cancelScheduleFormBtn) {
+            cancelScheduleFormBtn.addEventListener('click', () => {
+                closeScheduleForm();
+            });
+        }
+        
+        // Close schedule form modal when clicking backdrop
+        const scheduleFormModal = document.getElementById('scheduleFormModal');
+        if (scheduleFormModal) {
+            scheduleFormModal.addEventListener('click', (e) => {
+                if (e.target === scheduleFormModal) {
+                    closeScheduleForm();
+                }
+            });
+        }
+        
+        const scheduleForm = document.getElementById('scheduleForm');
+        if (scheduleForm) scheduleForm.addEventListener('submit', handleScheduleSubmit);
+        
+        const scheduleType = document.getElementById('scheduleType');
+        if (scheduleType) scheduleType.addEventListener('change', handleScheduleTypeChange);
+        
+        // Schedule form tabs (only add if elements exist)
+        const showReposBtn = document.getElementById('showReposBtn');
+        const showGroupsBtn = document.getElementById('showGroupsBtn');
+        if (showReposBtn && showGroupsBtn) {
+            showReposBtn.addEventListener('click', () => {
+                const repoCheckboxes = document.getElementById('repoCheckboxes');
+                const groupCheckboxes = document.getElementById('groupCheckboxes');
+                if (repoCheckboxes) repoCheckboxes.classList.remove('hidden');
+                if (groupCheckboxes) groupCheckboxes.classList.add('hidden');
+                showReposBtn.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-700', 'dark:text-gray-200');
+                showReposBtn.classList.add('bg-blue-600', 'text-white');
+                showGroupsBtn.classList.remove('bg-blue-600', 'text-white');
+                showGroupsBtn.classList.add('bg-gray-300', 'dark:bg-gray-600', 'text-gray-700', 'dark:text-gray-200');
+            });
+            showGroupsBtn.addEventListener('click', () => {
+                const repoCheckboxes = document.getElementById('repoCheckboxes');
+                const groupCheckboxes = document.getElementById('groupCheckboxes');
+                if (groupCheckboxes) groupCheckboxes.classList.remove('hidden');
+                if (repoCheckboxes) repoCheckboxes.classList.add('hidden');
+                showGroupsBtn.classList.remove('bg-gray-300', 'dark:bg-gray-600', 'text-gray-700', 'dark:text-gray-200');
+                showGroupsBtn.classList.add('bg-blue-600', 'text-white');
+                showReposBtn.classList.remove('bg-blue-600', 'text-white');
+                showReposBtn.classList.add('bg-gray-300', 'dark:bg-gray-600', 'text-gray-700', 'dark:text-gray-200');
+            });
+        }
+    } catch (error) {
+        console.error('Error initializing event listeners:', error);
+        showToast('Error initializing event listeners: ' + error.message, 'error');
+    }
 }
 
 // Toggle auto-refresh
@@ -139,15 +380,15 @@ function toggleAutoRefresh(event) {
 }
 
 // Load all repositories
-async function loadRepositories() {
+async function loadRepositories(forceRefresh = false) {
     showLoading(true);
     
     try {
-        const search = document.getElementById('searchInput').value;
-        const status = document.getElementById('statusFilter').value;
-        const group = document.getElementById('groupFilter').value;
-        const tag = document.getElementById('tagFilter').value;
-        const sort = document.getElementById('sortSelect').value;
+        const search = document.getElementById('searchInput')?.value || '';
+        const status = document.getElementById('statusFilter')?.value || '';
+        const group = document.getElementById('groupFilter')?.value || '';
+        const tag = document.getElementById('tagFilter')?.value || '';
+        const sort = document.getElementById('sortSelect')?.value || '';
         
         const params = new URLSearchParams();
         if (search) params.append('search', search);
@@ -155,18 +396,36 @@ async function loadRepositories() {
         if (group) params.append('group', group);
         if (tag) params.append('tag', tag);
         if (sort) params.append('sort', sort);
+        if (forceRefresh) params.append('force_refresh', 'true');
         
         const response = await fetch(`${API_BASE}/repos?${params.toString()}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
+        console.log('Repos API response:', data); // Debug log
+        
         if (data.success) {
-            allReposData = data.repos;
-            renderRepositories(data.repos);
-            updateRepoCount(data.repos.length);
+            allReposData = data.repos || [];
+            console.log(`Loaded ${allReposData.length} repositories`); // Debug log
+            if (allReposData.length > 0) {
+                console.log('First repo:', allReposData[0]); // Debug log
+            }
+            renderRepositories(allReposData);
+            const countBadge = document.getElementById('repoCountBadge');
+            if (countBadge) {
+                countBadge.textContent = allReposData.length;
+            }
         } else {
+            console.error('Failed to load repos:', data.error);
             showToast('Failed to load repositories: ' + (data.error || 'Unknown error'), 'error');
+            renderRepositories([]); // Show empty state
         }
     } catch (error) {
+        console.error('Error loading repositories:', error);
         showToast('Error loading repositories: ' + error.message, 'error');
     } finally {
         showLoading(false);
@@ -186,16 +445,43 @@ function renderRepositories(repos) {
     const container = document.getElementById('reposContainer');
     const emptyState = document.getElementById('emptyState');
     
-    if (repos.length === 0) {
-        container.classList.add('hidden');
-        emptyState.classList.remove('hidden');
+    console.log('Rendering repositories:', repos.length, repos); // Debug log
+    
+    if (!container) {
+        console.error('reposContainer element not found!');
+        showToast('Error: Repository container not found', 'error');
         return;
     }
     
-    container.classList.remove('hidden');
-    emptyState.classList.add('hidden');
+    if (!emptyState) {
+        console.error('emptyState element not found!');
+    }
     
-    container.innerHTML = repos.map(repo => createRepoCard(repo)).join('');
+    if (!repos || repos.length === 0) {
+        console.log('No repositories to display, showing empty state');
+        container.classList.add('hidden');
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    console.log('Rendering', repos.length, 'repository cards');
+    container.classList.remove('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
+    
+    try {
+        container.innerHTML = repos.map(repo => {
+            try {
+                return createRepoCard(repo);
+            } catch (error) {
+                console.error('Error creating card for repo:', repo.name, error);
+                return `<div class="bg-red-100 dark:bg-red-900 p-4 rounded">Error rendering ${repo.name || 'unknown'}</div>`;
+            }
+        }).join('');
+        console.log('Repository cards rendered successfully');
+    } catch (error) {
+        console.error('Error rendering repositories:', error);
+        showToast('Error rendering repositories: ' + error.message, 'error');
+    }
     
     // Attach event listeners
     repos.forEach(repo => {
@@ -518,30 +804,50 @@ let currentEditingSchedule = null;
 
 async function openSchedulesModal() {
     document.getElementById('schedulesModal').classList.remove('hidden');
-    await loadSchedules();
+    // Force reload schedules when modal opens - add cache busting
+    await loadSchedules(true);
 }
 
 function closeSchedulesModal() {
     document.getElementById('schedulesModal').classList.add('hidden');
 }
 
-async function loadSchedules() {
+async function loadSchedules(forceRefresh = false) {
     try {
-        const response = await fetch(`${API_BASE}/schedules`);
+        // Add cache busting parameter to ensure fresh data
+        const url = forceRefresh 
+            ? `${API_BASE}/schedules?t=${Date.now()}`
+            : `${API_BASE}/schedules`;
+        const response = await fetch(url, {
+            method: 'GET',
+            cache: 'no-cache',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        });
         const data = await response.json();
         
         if (data.success) {
-            renderSchedules(data.schedules);
+            console.log('Loaded schedules:', data.schedules); // Debug log
+            renderSchedules(data.schedules || []);
         } else {
-            showToast('Failed to load schedules', 'error');
+            console.error('Failed to load schedules:', data.error);
+            showToast('Failed to load schedules: ' + (data.error || 'Unknown error'), 'error');
         }
     } catch (error) {
+        console.error('Error loading schedules:', error);
         showToast('Error loading schedules: ' + error.message, 'error');
     }
 }
 
 function renderSchedules(schedules) {
     const container = document.getElementById('schedulesList');
+    
+    // Ensure schedules is an array
+    if (!Array.isArray(schedules)) {
+        console.error('Schedules is not an array:', schedules);
+        schedules = [];
+    }
     
     if (schedules.length === 0) {
         container.innerHTML = `
@@ -587,8 +893,16 @@ function renderSchedules(schedules) {
             <div class="space-y-2 text-sm">
                 <div class="flex items-center gap-2">
                     <span class="font-semibold text-gray-700 dark:text-gray-300">Repositories:</span>
-                    <span class="text-gray-600 dark:text-gray-400">${schedule.repos.join(', ')}</span>
+                    <span class="text-gray-600 dark:text-gray-400">${(schedule.repos || []).length > 0 ? schedule.repos.join(', ') : 'None'}</span>
                 </div>
+                ${(schedule.groups || []).length > 0 ? `
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">Groups:</span>
+                    <div class="flex flex-wrap gap-1">
+                        ${schedule.groups.map(g => `<span class="px-2 py-1 bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 rounded text-xs font-medium">${escapeHtml(g)}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
                 <div class="flex items-center gap-2">
                     <span class="font-semibold text-gray-700 dark:text-gray-300">Schedule:</span>
                     <span class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded text-xs font-medium">${formatScheduleType(schedule)}</span>
@@ -621,7 +935,8 @@ async function toggleSchedule(scheduleId, enabled) {
         
         if (data.success) {
             showToast(`Schedule ${enabled ? 'enabled' : 'disabled'}`, 'success');
-            await loadSchedules();
+            // Force refresh after toggle
+            await loadSchedules(true);
         } else {
             showToast('Failed to update schedule', 'error');
         }
@@ -641,11 +956,14 @@ async function deleteSchedule(scheduleId) {
         
         if (data.success) {
             showToast('Schedule deleted', 'success');
-            await loadSchedules();
+            // Force refresh after delete
+            await loadSchedules(true);
         } else {
-            showToast('Failed to delete schedule', 'error');
+            console.error('Failed to delete schedule:', data.error);
+            showToast('Failed to delete schedule: ' + (data.error || 'Unknown error'), 'error');
         }
     } catch (error) {
+        console.error('Error deleting schedule:', error);
         showToast('Error deleting schedule: ' + error.message, 'error');
     }
 }
@@ -659,7 +977,7 @@ async function editSchedule(scheduleId) {
             const schedule = data.schedules.find(s => s.id === scheduleId);
             if (schedule) {
                 currentEditingSchedule = schedule;
-                openScheduleForm(schedule);
+                await openScheduleForm(schedule);
             }
         }
     } catch (error) {
@@ -667,17 +985,14 @@ async function editSchedule(scheduleId) {
     }
 }
 
-function openNewScheduleForm() {
+async function openNewScheduleForm() {
     currentEditingSchedule = null;
-    openScheduleForm();
+    await openScheduleForm();
 }
 
-function openScheduleForm(schedule = null) {
+async function openScheduleForm(schedule = null) {
     document.getElementById('scheduleFormTitle').textContent = schedule ? 'Edit Schedule' : 'New Schedule';
     document.getElementById('scheduleFormModal').classList.remove('hidden');
-    
-    // Load repos for checkboxes
-    loadReposForSchedule();
     
     if (schedule) {
         // Populate form with schedule data
@@ -695,10 +1010,14 @@ function openScheduleForm(schedule = null) {
         } else if (schedule.type === 'custom') {
             document.getElementById('scheduleCron').value = schedule.cron || '';
         }
+        
+        // Load repos/groups after form is populated so checkboxes can be checked
+        await loadReposForSchedule();
     } else {
         // Reset form
         document.getElementById('scheduleForm').reset();
         handleScheduleTypeChange();
+        await loadReposForSchedule();
     }
 }
 
@@ -709,23 +1028,47 @@ function closeScheduleForm() {
 
 async function loadReposForSchedule() {
     try {
-        const response = await fetch(`${API_BASE}/repos`);
-        const data = await response.json();
+        const [reposResponse, groupsResponse] = await Promise.all([
+            fetch(`${API_BASE}/repos`),
+            fetch(`${API_BASE}/groups`)
+        ]);
         
-        if (data.success) {
-            allRepos = data.repos;
+        const reposData = await reposResponse.json();
+        const groupsData = await groupsResponse.json();
+        
+        if (reposData.success) {
+            allRepos = reposData.repos;
             const container = document.getElementById('repoCheckboxes');
-            container.innerHTML = data.repos.map(repo => `
-                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+            container.innerHTML = reposData.repos.map(repo => `
+                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
                     <input type="checkbox" value="${escapeHtml(repo.name)}" 
-                           ${currentEditingSchedule && currentEditingSchedule.repos.includes(repo.name) ? 'checked' : ''}
+                           ${currentEditingSchedule && currentEditingSchedule.repos && currentEditingSchedule.repos.includes(repo.name) ? 'checked' : ''}
                            class="schedule-repo-checkbox w-4 h-4 text-blue-600 rounded">
-                    <span>${escapeHtml(repo.name)}</span>
+                    <span class="text-gray-700 dark:text-gray-300">${escapeHtml(repo.name)}</span>
                 </label>
             `).join('');
         }
+        
+        if (groupsData.success) {
+            const container = document.getElementById('groupCheckboxes');
+            container.innerHTML = groupsData.groups.map(group => {
+                const isSelected = currentEditingSchedule && currentEditingSchedule.groups && currentEditingSchedule.groups.includes(group.name);
+                return `
+                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
+                    <input type="checkbox" value="group:${escapeHtml(group.name)}" 
+                           ${isSelected ? 'checked' : ''}
+                           class="schedule-group-checkbox w-4 h-4 text-pink-600 rounded">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full" style="background-color: ${group.color || '#3B82F6'}"></div>
+                        <span class="text-gray-700 dark:text-gray-300 font-medium">${escapeHtml(group.name)}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">(${(group.repos || []).length} repos)</span>
+                    </div>
+                </label>
+            `;
+            }).join('');
+        }
     } catch (error) {
-        showToast('Error loading repositories', 'error');
+        showToast('Error loading repositories/groups', 'error');
     }
 }
 
@@ -742,15 +1085,17 @@ async function handleScheduleSubmit(event) {
     const name = document.getElementById('scheduleName').value;
     const type = document.getElementById('scheduleType').value;
     const selectedRepos = Array.from(document.querySelectorAll('.schedule-repo-checkbox:checked')).map(cb => cb.value);
+    const selectedGroups = Array.from(document.querySelectorAll('.schedule-group-checkbox:checked')).map(cb => cb.value.replace('group:', ''));
     
-    if (!name || selectedRepos.length === 0) {
-        showToast('Please provide a name and select at least one repository', 'error');
+    if (!name || (selectedRepos.length === 0 && selectedGroups.length === 0)) {
+        showToast('Please provide a name and select at least one repository or group', 'error');
         return;
     }
     
     const scheduleData = {
         name,
         repos: selectedRepos,
+        groups: selectedGroups,  // Include groups separately
         type,
         value: null
     };
@@ -787,8 +1132,10 @@ async function handleScheduleSubmit(event) {
         if (data.success) {
             showToast(`Schedule ${currentEditingSchedule ? 'updated' : 'created'} successfully`, 'success');
             closeScheduleForm();
-            await loadSchedules();
+            // Reload schedules to update the list - force refresh
+            await loadSchedules(true);
         } else {
+            console.error('Failed to save schedule:', data.error);
             showToast('Failed to save schedule: ' + (data.error || 'Unknown error'), 'error');
         }
     } catch (error) {
@@ -820,85 +1167,107 @@ function renderStats(stats, cacheStats) {
     const container = document.getElementById('statsContent');
     const statusCounts = stats.status_counts || {};
     
-    let cacheHtml = '';
-    if (cacheStats) {
-        cacheHtml = `
-            <div class="stats-card bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 p-6 rounded-xl border border-purple-200 dark:border-purple-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="p-2 bg-purple-500 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
-                        </svg>
-                    </div>
-                </div>
-                <div class="text-3xl font-bold text-purple-800 dark:text-purple-100 mb-1">${cacheStats.hit_rate}%</div>
-                <div class="text-sm font-medium text-purple-600 dark:text-purple-300">Cache Hit Rate</div>
-                <div class="mt-4 space-y-1 text-xs text-purple-700 dark:text-purple-300">
-                    <div class="flex justify-between">
-                        <span>Hits:</span>
-                        <span class="font-bold">${cacheStats.hits}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Misses:</span>
-                        <span class="font-bold">${cacheStats.misses}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Entries:</span>
-                        <span class="font-bold">${cacheStats.entries}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
     container.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="stats-card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 p-6 rounded-xl border border-blue-200 dark:border-blue-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
-            <div class="flex items-center justify-between mb-2">
-                <div class="p-2 bg-blue-500 rounded-lg">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                    </svg>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Total Repositories -->
+            <div class="relative bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 dark:from-blue-600 dark:via-blue-700 dark:to-blue-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 border border-blue-400/20 dark:border-blue-500/30 overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-white/20 dark:bg-white/10 rounded-xl backdrop-blur-sm">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-extrabold text-white mb-2">${stats.total_repos || 0}</div>
+                    <div class="text-sm font-semibold text-blue-100 uppercase tracking-wide">Total Repositories</div>
                 </div>
             </div>
-            <div class="text-3xl font-bold text-blue-800 dark:text-blue-100 mb-1">${stats.total_repos || 0}</div>
-            <div class="text-sm font-medium text-blue-600 dark:text-blue-300">Total Repositories</div>
-        </div>
-        <div class="stats-card bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 p-6 rounded-xl border border-green-200 dark:border-green-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
-            <div class="flex items-center justify-between mb-2">
-                <div class="p-2 bg-green-500 rounded-lg">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+            
+            <!-- Up to Date -->
+            <div class="relative bg-gradient-to-br from-green-500 via-green-600 to-green-700 dark:from-green-600 dark:via-green-700 dark:to-green-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 border border-green-400/20 dark:border-green-500/30 overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-white/20 dark:bg-white/10 rounded-xl backdrop-blur-sm">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-extrabold text-white mb-2">${statusCounts.up_to_date || 0}</div>
+                    <div class="text-sm font-semibold text-green-100 uppercase tracking-wide">Up to Date</div>
                 </div>
             </div>
-            <div class="text-3xl font-bold text-green-800 dark:text-green-100 mb-1">${statusCounts.up_to_date || 0}</div>
-            <div class="text-sm font-medium text-green-600 dark:text-green-300">Up to Date</div>
-        </div>
-        <div class="stats-card bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800 p-6 rounded-xl border border-orange-200 dark:border-orange-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
-            <div class="flex items-center justify-between mb-2">
-                <div class="p-2 bg-orange-500 rounded-lg">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+            
+            <!-- Behind -->
+            <div class="relative bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 dark:from-orange-600 dark:via-orange-700 dark:to-orange-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 border border-orange-400/20 dark:border-orange-500/30 overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-white/20 dark:bg-white/10 rounded-xl backdrop-blur-sm">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-extrabold text-white mb-2">${statusCounts.behind || 0}</div>
+                    <div class="text-sm font-semibold text-orange-100 uppercase tracking-wide">Behind</div>
                 </div>
             </div>
-            <div class="text-3xl font-bold text-orange-800 dark:text-orange-100 mb-1">${statusCounts.behind || 0}</div>
-            <div class="text-sm font-medium text-orange-600 dark:text-orange-300">Behind</div>
-        </div>
-        <div class="stats-card bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900 dark:to-red-800 p-6 rounded-xl border border-red-200 dark:border-red-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
-            <div class="flex items-center justify-between mb-2">
-                <div class="p-2 bg-red-500 rounded-lg">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
+            
+            <!-- Diverged -->
+            <div class="relative bg-gradient-to-br from-red-500 via-red-600 to-red-700 dark:from-red-600 dark:via-red-700 dark:to-red-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 border border-red-400/20 dark:border-red-500/30 overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-white/20 dark:bg-white/10 rounded-xl backdrop-blur-sm">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-extrabold text-white mb-2">${statusCounts.diverged || 0}</div>
+                    <div class="text-sm font-semibold text-red-100 uppercase tracking-wide">Diverged</div>
                 </div>
             </div>
-            <div class="text-3xl font-bold text-red-800 dark:text-red-100 mb-1">${statusCounts.diverged || 0}</div>
-            <div class="text-sm font-medium text-red-600 dark:text-red-300">Diverged</div>
+            
+            ${cacheStats ? `
+            <!-- Cache Statistics -->
+            <div id="cacheStatsCard" class="relative bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 dark:from-purple-600 dark:via-purple-700 dark:to-purple-800 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 border border-purple-400/20 dark:border-purple-500/30 overflow-hidden md:col-span-2 lg:col-span-1 cursor-pointer" onclick="openCacheDetailsModal()">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-white/20 dark:bg-white/10 rounded-xl backdrop-blur-sm">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-4xl font-extrabold text-white mb-2">${cacheStats.hit_rate}%</div>
+                    <div class="text-sm font-semibold text-purple-100 uppercase tracking-wide mb-4">Cache Hit Rate</div>
+                    <div class="grid grid-cols-3 gap-3 pt-4 border-t border-white/20">
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-white">${cacheStats.hits}</div>
+                            <div class="text-xs text-purple-100 uppercase tracking-wide">Hits</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-white">${cacheStats.misses}</div>
+                            <div class="text-xs text-purple-100 uppercase tracking-wide">Misses</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-white">${cacheStats.entries}</div>
+                            <div class="text-xs text-purple-100 uppercase tracking-wide">Entries</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-white/20 text-center">
+                        <div class="text-xs text-purple-200 italic">Click for details</div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
         </div>
-        </div>
-        ${cacheHtml}
     `;
 }
 
@@ -907,6 +1276,170 @@ function toggleStatsDashboard() {
     dashboard.classList.toggle('hidden');
     if (!dashboard.classList.contains('hidden')) {
         loadStats();
+    }
+}
+
+// Cache Details Modal
+async function openCacheDetailsModal() {
+    const modal = document.getElementById('cacheDetailsModal');
+    modal.classList.remove('hidden');
+    await loadCacheDetails();
+}
+
+function closeCacheDetailsModal() {
+    document.getElementById('cacheDetailsModal').classList.add('hidden');
+}
+
+async function loadCacheDetails() {
+    try {
+        const response = await fetch(`${API_BASE}/cache/stats`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderCacheDetails(data.stats);
+        } else {
+            showToast('Failed to load cache details: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error loading cache details: ' + error.message, 'error');
+    }
+}
+
+function renderCacheDetails(cacheStats) {
+    const container = document.getElementById('cacheDetailsContent');
+    const totalRequests = cacheStats.hits + cacheStats.misses;
+    const hitRate = cacheStats.hit_rate || 0;
+    const missRate = totalRequests > 0 ? ((cacheStats.misses / totalRequests) * 100).toFixed(2) : 0;
+    
+    // Calculate TTL in minutes
+    const ttlMinutes = Math.floor(cacheStats.ttl_seconds / 60);
+    const ttlSeconds = cacheStats.ttl_seconds % 60;
+    const ttlDisplay = ttlMinutes > 0 ? `${ttlMinutes}m ${ttlSeconds}s` : `${ttlSeconds}s`;
+    
+    container.innerHTML = `
+        <div class="space-y-6">
+            <!-- Overview Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 p-4 rounded-xl border border-green-200 dark:border-green-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm font-medium text-green-700 dark:text-green-300">Cache Hits</div>
+                        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-bold text-green-800 dark:text-green-100">${cacheStats.hits}</div>
+                    <div class="text-xs text-green-600 dark:text-green-400 mt-1">${hitRate}% of requests</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800 p-4 rounded-xl border border-orange-200 dark:border-orange-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm font-medium text-orange-700 dark:text-orange-300">Cache Misses</div>
+                        <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-bold text-orange-800 dark:text-orange-100">${cacheStats.misses}</div>
+                    <div class="text-xs text-orange-600 dark:text-orange-400 mt-1">${missRate}% of requests</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 p-4 rounded-xl border border-blue-200 dark:border-blue-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm font-medium text-blue-700 dark:text-blue-300">Cache Entries</div>
+                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                        </svg>
+                    </div>
+                    <div class="text-3xl font-bold text-blue-800 dark:text-blue-100">${cacheStats.entries}</div>
+                    <div class="text-xs text-blue-600 dark:text-blue-400 mt-1">Currently cached</div>
+                </div>
+            </div>
+            
+            <!-- Performance Metrics -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Performance Metrics</h3>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Hit Rate</span>
+                            <span class="text-sm font-bold text-gray-900 dark:text-white">${hitRate}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300" style="width: ${hitRate}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Miss Rate</span>
+                            <span class="text-sm font-bold text-gray-900 dark:text-white">${missRate}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full transition-all duration-300" style="width: ${missRate}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cache Configuration -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">Cache Configuration</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Time-to-Live (TTL)</div>
+                        <div class="text-xl font-bold text-gray-800 dark:text-white">${ttlDisplay}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${cacheStats.ttl_seconds} seconds</div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Requests</div>
+                        <div class="text-xl font-bold text-gray-800 dark:text-white">${totalRequests}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Hits + Misses</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex gap-3">
+                <button onclick="clearCache()" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95">
+                    <span class="flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Clear Cache
+                    </span>
+                </button>
+                <button onclick="loadCacheDetails()" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95">
+                    <span class="flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Refresh
+                    </span>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function clearCache() {
+    try {
+        const response = await fetch(`${API_BASE}/cache/clear`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Cache cleared successfully', 'success');
+            await loadCacheDetails();
+            // Also refresh stats if dashboard is open
+            const dashboard = document.getElementById('statsDashboard');
+            if (!dashboard.classList.contains('hidden')) {
+                await loadStats();
+            }
+        } else {
+            showToast('Failed to clear cache: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error clearing cache: ' + error.message, 'error');
     }
 }
 
@@ -1049,9 +1582,24 @@ function renderRepoDetails(repo) {
     `;
 }
 
-document.getElementById('closeRepoDetails').addEventListener('click', () => {
-    document.getElementById('repoDetailsModal').classList.add('hidden');
-});
+// Repository details modal close handler
+const closeRepoDetailsBtn = document.getElementById('closeRepoDetails');
+if (closeRepoDetailsBtn) {
+    closeRepoDetailsBtn.addEventListener('click', () => {
+        const repoDetailsModal = document.getElementById('repoDetailsModal');
+        if (repoDetailsModal) repoDetailsModal.classList.add('hidden');
+    });
+}
+
+// Close repo details modal when clicking backdrop
+const repoDetailsModal = document.getElementById('repoDetailsModal');
+if (repoDetailsModal) {
+    repoDetailsModal.addEventListener('click', (e) => {
+        if (e.target === repoDetailsModal) {
+            repoDetailsModal.classList.add('hidden');
+        }
+    });
+}
 
 // Bulk Selection
 function toggleBulkSelection(event) {
@@ -1106,13 +1654,17 @@ async function bulkUpdateSelected() {
     }
 }
 
-function bulkAddToGroup() {
-    const groupName = prompt('Enter group name:');
-    if (!groupName) return;
-    
+async function bulkAddToGroup() {
     const repos = Array.from(selectedRepos);
-    // Implementation would call API to add repos to group
-    showToast('Feature coming soon', 'info');
+    if (repos.length === 0) {
+        showToast('Please select repositories first', 'error');
+        return;
+    }
+    
+    // Open groups modal and show bulk add option
+    await openGroupsModal();
+    // You can add a bulk add interface here, or just let users add to existing groups
+    showToast(`Selected ${repos.length} repositories. Use Groups modal to add them to a group.`, 'info');
 }
 
 function bulkAddTag() {
@@ -1148,6 +1700,233 @@ async function loadGroupsAndTags() {
         }
     } catch (error) {
         console.error('Error loading groups/tags:', error);
+    }
+}
+
+// Groups Management
+let currentEditingGroup = null;
+let allReposForGroups = [];
+
+async function openGroupsModal() {
+    document.getElementById('groupsModal').classList.remove('hidden');
+    await loadGroups();
+}
+
+function closeGroupsModal() {
+    document.getElementById('groupsModal').classList.add('hidden');
+}
+
+async function loadGroups() {
+    try {
+        const response = await fetch(`${API_BASE}/groups?t=${Date.now()}`, {
+            cache: 'no-cache'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            renderGroups(data.groups || []);
+        } else {
+            showToast('Failed to load groups: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error loading groups:', error);
+        showToast('Error loading groups: ' + error.message, 'error');
+    }
+}
+
+function renderGroups(groups) {
+    const container = document.getElementById('groupsList');
+    
+    if (!Array.isArray(groups)) {
+        groups = [];
+    }
+    
+    if (groups.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-12">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400">No groups configured.</p>
+                <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Click "New Group" to create one.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = groups.map(group => `
+        <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-5 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-lg" style="background-color: ${group.color || '#3B82F6'}">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-white">${escapeHtml(group.name)}</h3>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="editGroup('${group.id}')" class="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-medium shadow-sm hover:shadow transition-all">
+                        Edit
+                    </button>
+                    <button onclick="deleteGroup('${group.id}')" class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 text-sm font-medium shadow-sm hover:shadow transition-all">
+                        Delete
+                    </button>
+                </div>
+            </div>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">Repositories:</span>
+                    <span class="text-gray-600 dark:text-gray-400">${(group.repos || []).length} repository${(group.repos || []).length !== 1 ? 'ies' : ''}</span>
+                </div>
+                ${(group.repos || []).length > 0 ? `
+                <div class="flex flex-wrap gap-1 mt-2">
+                    ${group.repos.map(repo => `
+                        <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">${escapeHtml(repo)}</span>
+                    `).join('')}
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function openNewGroupForm() {
+    currentEditingGroup = null;
+    openGroupForm();
+}
+
+function openGroupForm(group = null) {
+    document.getElementById('groupFormTitle').textContent = group ? 'Edit Group' : 'New Group';
+    document.getElementById('groupFormModal').classList.remove('hidden');
+    
+    // Load repos for checkboxes
+    loadReposForGroup();
+    
+    if (group) {
+        // Populate form with group data
+        document.getElementById('groupName').value = group.name || '';
+        document.getElementById('groupColor').value = group.color || '#3B82F6';
+        currentEditingGroup = group;
+    } else {
+        // Reset form
+        document.getElementById('groupForm').reset();
+        document.getElementById('groupColor').value = '#3B82F6';
+        currentEditingGroup = null;
+    }
+}
+
+function closeGroupForm() {
+    document.getElementById('groupFormModal').classList.add('hidden');
+    currentEditingGroup = null;
+}
+
+async function loadReposForGroup() {
+    try {
+        const response = await fetch(`${API_BASE}/repos`);
+        const data = await response.json();
+        
+        if (data.success) {
+            allReposForGroups = data.repos;
+            const container = document.getElementById('groupRepoCheckboxes');
+            container.innerHTML = data.repos.map(repo => `
+                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
+                    <input type="checkbox" value="${escapeHtml(repo.name)}" 
+                           ${currentEditingGroup && (currentEditingGroup.repos || []).includes(repo.name) ? 'checked' : ''}
+                           class="group-repo-checkbox w-4 h-4 text-pink-600 rounded">
+                    <span class="text-gray-700 dark:text-gray-300">${escapeHtml(repo.name)}</span>
+                </label>
+            `).join('');
+        }
+    } catch (error) {
+        showToast('Error loading repositories', 'error');
+    }
+}
+
+async function handleGroupSubmit(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('groupName').value;
+    const color = document.getElementById('groupColor').value;
+    const selectedRepos = Array.from(document.querySelectorAll('.group-repo-checkbox:checked')).map(cb => cb.value);
+    
+    if (!name) {
+        showToast('Please provide a group name', 'error');
+        return;
+    }
+    
+    const groupData = {
+        name,
+        repos: selectedRepos,
+        color
+    };
+    
+    try {
+        const url = currentEditingGroup 
+            ? `${API_BASE}/groups/${currentEditingGroup.id}`
+            : `${API_BASE}/groups`;
+        const method = currentEditingGroup ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(groupData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Group ${currentEditingGroup ? 'updated' : 'created'} successfully`, 'success');
+            closeGroupForm();
+            await loadGroups();
+            await loadGroupsAndTags(); // Refresh filter dropdown
+            await loadRepositories(); // Refresh repo list to show new groups
+        } else {
+            showToast('Failed to save group: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error saving group: ' + error.message, 'error');
+    }
+}
+
+async function editGroup(groupId) {
+    try {
+        const response = await fetch(`${API_BASE}/groups`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const group = data.groups.find(g => g.id === groupId);
+            if (group) {
+                currentEditingGroup = group;
+                openGroupForm(group);
+            }
+        }
+    } catch (error) {
+        showToast('Error loading group: ' + error.message, 'error');
+    }
+}
+
+async function deleteGroup(groupId) {
+    if (!confirm('Are you sure you want to delete this group?')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/groups/${groupId}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Group deleted', 'success');
+            await loadGroups();
+            await loadGroupsAndTags(); // Refresh filter dropdown
+            await loadRepositories(); // Refresh repo list
+        } else {
+            showToast('Failed to delete group: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error deleting group: ' + error.message, 'error');
     }
 }
 

@@ -106,6 +106,19 @@ class GitScanner:
                 status["state"] = "no_remote"
                 return status
             
+            # Fetch from remote to get latest remote refs before checking status
+            # This ensures we detect divergence accurately
+            try:
+                remote_name = "origin"
+                if remote_name in repo.remotes:
+                    repo.remotes[remote_name].fetch()
+                elif len(repo.remotes) > 0:
+                    repo.remotes[0].fetch()
+            except Exception as e:
+                # If fetch fails, we'll still try to check status with existing refs
+                # but log that we couldn't fetch
+                pass
+            
             # Try to find remote tracking branch
             remote_name = "origin"
             main_branches = ["main", "master"]

@@ -25,18 +25,27 @@ class RepoGroups:
     def _save_groups(self):
         """Save groups to config file."""
         try:
-            with open(self.config_file, 'w') as f:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+            # Write to a temporary file first, then rename (atomic operation)
+            temp_file = self.config_file + '.tmp'
+            with open(temp_file, 'w') as f:
                 json.dump(self.groups, f, indent=2)
+            # Atomic rename
+            os.replace(temp_file, self.config_file)
         except Exception as e:
             print(f"Error saving repo groups: {e}")
+            raise
     
     def create_group(self, name: str, repos: List[str], color: Optional[str] = None) -> Dict:
         """Create a new repository group."""
-        group_id = f"group_{len(self.groups.get('groups', {}))}"
+        import time
+        # Generate unique ID based on timestamp to avoid collisions
+        group_id = f"group_{int(time.time() * 1000)}"
         group = {
             "id": group_id,
             "name": name,
-            "repos": repos,
+            "repos": repos or [],
             "color": color or "#3B82F6"  # Default blue
         }
         
@@ -76,6 +85,33 @@ class RepoGroups:
             if repo_name in group.get('repos', []):
                 groups.append(group['name'])
         return groups
+    
+    def add_repo_to_group(self, group_id: str, repo_name: str) -> bool:
+        """Add a repository to a group."""
+        if group_id not in self.groups.get('groups', {}):
+            return False
+        
+        group = self.groups['groups'][group_id]
+        if 'repos' not in group:
+            group['repos'] = []
+        
+        if repo_name not in group['repos']:
+            group['repos'].append(repo_name)
+            self._save_groups()
+        
+        return True
+    
+    def remove_repo_from_group(self, group_id: str, repo_name: str) -> bool:
+        """Remove a repository from a group."""
+        if group_id not in self.groups.get('groups', {}):
+            return False
+        
+        group = self.groups['groups'][group_id]
+        if repo_name in group.get('repos', []):
+            group['repos'].remove(repo_name)
+            self._save_groups()
+        
+        return True
     
     def add_tag(self, repo_name: str, tag: str):
         """Add a tag to a repository."""

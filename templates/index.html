@@ -73,6 +73,12 @@
                         </svg>
                         Schedules
                     </button>
+                    <button id="groupsBtn" class="px-4 py-2.5 bg-gradient-to-r from-pink-600 to-pink-700 text-white rounded-lg hover:from-pink-700 hover:to-pink-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Manage groups">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                        Groups
+                    </button>
                     <button id="activityBtn" class="px-4 py-2.5 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white rounded-lg hover:from-yellow-700 hover:to-yellow-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="View activity log">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -91,15 +97,18 @@
         </header>
 
         <!-- Statistics Dashboard -->
-        <div id="statsDashboard" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 mb-6 transition-all border border-gray-200 dark:border-gray-700 page-transition">
-            <div class="flex items-center justify-between mb-6">
+        <div id="statsDashboard" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 mb-6 transition-all border border-gray-200 dark:border-gray-700 page-transition backdrop-blur-sm">
+            <div class="flex items-center justify-between mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center gap-3">
-                    <div class="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="p-3 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                         </svg>
                     </div>
-                    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Statistics Dashboard</h2>
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800 dark:text-white">Statistics Dashboard</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your repository status</p>
+                    </div>
                 </div>
                 <button id="closeStats" class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,8 +116,8 @@
                     </svg>
                 </button>
             </div>
-            <div id="statsContent" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Stats will be loaded here -->
+            <div id="statsContent">
+                <!-- Statistics will be loaded here -->
             </div>
         </div>
 
@@ -197,6 +206,84 @@
                 <div id="schedulesList" class="space-y-4">
                     <!-- Schedules will be loaded here -->
                 </div>
+            </div>
+        </div>
+
+        <!-- Groups Management Modal -->
+        <div id="groupsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto transition-all border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                            </svg>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Repository Groups</h2>
+                    </div>
+                    <button id="closeGroupsModal" class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <button id="newGroupBtn" class="px-4 py-2.5 bg-gradient-to-r from-pink-600 to-pink-700 text-white rounded-lg hover:from-pink-700 hover:to-pink-800 transition-all font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            New Group
+                        </span>
+                    </button>
+                </div>
+                
+                <div id="groupsList" class="space-y-4">
+                    <!-- Groups will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- New/Edit Group Modal -->
+        <div id="groupFormModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 transition-all border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-2xl font-bold text-gray-800 dark:text-white" id="groupFormTitle">New Group</h2>
+                    <button id="closeGroupForm" class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="groupForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Group Name</label>
+                        <input type="text" id="groupName" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color</label>
+                        <input type="color" id="groupColor" value="#3B82F6" class="w-full h-12 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Repositories</label>
+                        <div id="groupRepoCheckboxes" class="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto dark:bg-gray-700">
+                            <!-- Repositories will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3">
+                        <button type="submit" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-pink-600 to-pink-700 text-white rounded-lg hover:from-pink-700 hover:to-pink-800 transition-all font-medium shadow-md hover:shadow-lg">
+                            Save
+                        </button>
+                        <button type="button" id="cancelGroupBtn" class="px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all font-medium">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -362,6 +449,30 @@
             </div>
         </div>
 
+        <!-- Cache Details Modal -->
+        <div id="cacheDetailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto transition-all border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path>
+                            </svg>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Cache Details</h2>
+                    </div>
+                    <button id="closeCacheDetailsModal" class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="cacheDetailsContent">
+                    <!-- Cache details will be loaded here -->
+                </div>
+            </div>
+        </div>
+
         <!-- New/Edit Schedule Modal -->
         <div id="scheduleFormModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop">
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 transition-all border border-gray-200 dark:border-gray-700">
@@ -381,9 +492,22 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Repositories</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Repositories & Groups</label>
+                        <div class="mb-2">
+                            <div class="flex gap-2 mb-2">
+                                <button type="button" id="showReposBtn" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors">
+                                    Repositories
+                                </button>
+                                <button type="button" id="showGroupsBtn" class="px-3 py-1.5 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 text-sm font-medium transition-colors">
+                                    Groups
+                                </button>
+                            </div>
+                        </div>
                         <div id="repoCheckboxes" class="border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto dark:bg-gray-700">
                             <!-- Repositories will be loaded here -->
+                        </div>
+                        <div id="groupCheckboxes" class="hidden border border-gray-300 dark:border-gray-600 rounded-lg p-3 max-h-48 overflow-y-auto dark:bg-gray-700">
+                            <!-- Groups will be loaded here -->
                         </div>
                     </div>
                     

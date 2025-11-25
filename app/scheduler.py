@@ -37,10 +37,19 @@ class ScheduleManager:
     def _save_schedules(self):
         """Save schedules to config file."""
         try:
-            with open(self.config_file, 'w') as f:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+            # Write to a temporary file first, then rename (atomic operation)
+            temp_file = self.config_file + '.tmp'
+            # IMPORTANT: Only save what's currently in memory (self.schedules)
+            # Do NOT read from file first, as that could restore deleted schedules
+            with open(temp_file, 'w') as f:
                 json.dump(self.schedules, f, indent=2)
+            # Atomic rename to ensure file is either fully written or not changed
+            os.replace(temp_file, self.config_file)
         except Exception as e:
             print(f"Error saving schedules: {e}")
+            raise  # Re-raise to ensure caller knows save failed
     
     def _start_scheduler(self):
         """Start the scheduler and load existing schedules."""
@@ -147,7 +156,9 @@ class ScheduleManager:
     def create_schedule(self, name: str, repos: List[str], schedule_type: str, 
                        value: Optional[str] = None, **kwargs) -> Dict:
         """Create a new schedule."""
-        schedule_id = f"schedule_{len(self.schedules)}"
+        import time
+        # Generate unique ID based on timestamp to avoid collisions
+        schedule_id = f"schedule_{int(time.time() * 1000)}"
         
         schedule = {
             'id': schedule_id,
@@ -170,30 +181,62 @@ class ScheduleManager:
         if schedule_id not in self.schedules:
             return None
         
+        # IMPORTANT: Only update the schedule that exists in memory
+        # Do NOT reload from file, as that could restore deleted schedules
         self.schedules[schedule_id].update(kwargs)
+        
+        # Save current state to file (only what's in memory)
+        # This ensures deleted schedules stay deleted
         self._save_schedules()
         
+        # Update the scheduler job
         schedule = self.schedules[schedule_id]
-        if schedule.get('enabled', True):
-            self._add_job(schedule_id, schedule)
-        else:
-            self.scheduler.remove_job(schedule_id)
+        try:
+            if schedule.get('enabled', True):
+                self._add_job(schedule_id, schedule)
+            else:
+                try:
+                    self.scheduler.remove_job(schedule_id)
+                except Exception:
+                    pass  # Job might not exist
+        except Exception as e:
+            print(f"Error updating scheduler job for {schedule_id}: {e}")
         
         return schedule
     
     def delete_schedule(self, schedule_id: str) -> bool:
-        """Delete a schedule."""
+        """Delete a schedule - works for both enabled and disabled schedules."""
         if schedule_id not in self.schedules:
+            print(f"Schedule {schedule_id} not found in schedules dict")
             return False
         
-        self.scheduler.remove_job(schedule_id)
+        # Remove job from scheduler (whether enabled or disabled)
+        try:
+            self.scheduler.remove_job(schedule_id)
+        except Exception as e:
+            # Job might not exist (e.g., if schedule was disabled), that's okay
+            print(f"Note: Job {schedule_id} not found in scheduler: {e}")
+        
+        # Remove from memory
         del self.schedules[schedule_id]
-        self._save_schedules()
+        
+        # Save immediately to ensure file reflects current state
+        try:
+            self._save_schedules()
+            print(f"Successfully deleted schedule {schedule_id}")
+        except Exception as e:
+            print(f"Error saving after delete: {e}")
+            # Still return True as the schedule was removed from memory
+            # The save error will be logged but we don't want to fail the delete
+        
         return True
     
     def get_schedules(self) -> List[Dict]:
-        """Get all schedules."""
-        return list(self.schedules.values())
+        """Get all schedules - returns a fresh list from current memory state."""
+        # Return a list of all schedule dictionaries
+        # This ensures we always return the current state, not cached data
+        schedules_list = list(self.schedules.values())
+        return schedules_list
     
     def get_schedule(self, schedule_id: str) -> Optional[Dict]:
         """Get a specific schedule."""
