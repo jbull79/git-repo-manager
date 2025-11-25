@@ -17,7 +17,9 @@ class Settings:
             "auto_refresh_interval": 30,
             "max_activity_log_entries": 1000,
             "cache_ttl_seconds": 600,  # Cache TTL in seconds (default: 10 minutes)
-            "theme": "light"
+            "theme": "light",
+            "batch_size": 10,  # Number of repos to process per batch
+            "parallel_workers": 5  # Number of parallel workers for batch processing
         }
         self.settings = self._load_settings()
     

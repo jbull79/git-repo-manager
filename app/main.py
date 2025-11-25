@@ -71,8 +71,17 @@ def list_repos():
         # Check for force_refresh parameter
         force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
         
+        # Get batch processing settings
+        batch_size = settings.get("batch_size", 10)
+        parallel_workers = settings.get("parallel_workers", 5)
+        
         # Use cache if available
-        repos = scanner.scan_all_repos(force_refresh=force_refresh, cache_manager=cache_manager)
+        repos = scanner.scan_all_repos(
+            force_refresh=force_refresh, 
+            cache_manager=cache_manager,
+            batch_size=batch_size,
+            parallel_workers=parallel_workers
+        )
         
         # Add groups and tags to each repo
         for repo in repos:
@@ -111,6 +120,79 @@ def list_repos():
             "repos": repos,
             "count": len(repos)
         }), 200, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/repos/batch', methods=['GET'])
+def list_repos_batch():
+    """List repositories in batches for progressive loading."""
+    try:
+        # Get batch parameters
+        batch_index = int(request.args.get('batch', 0))
+        batch_size = int(request.args.get('batch_size', settings.get("batch_size", 10)))
+        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+        
+        # Get all repository names first (fast operation)
+        all_repo_names = scanner.find_repositories()
+        total_repos = len(all_repo_names)
+        
+        # Calculate batch range
+        start_idx = batch_index * batch_size
+        end_idx = min(start_idx + batch_size, total_repos)
+        
+        if start_idx >= total_repos:
+            return jsonify({
+                "success": True,
+                "repos": [],
+                "batch": batch_index,
+                "total": total_repos,
+                "has_more": False
+            })
+        
+        # Get batch of repo names
+        batch_repo_names = all_repo_names[start_idx:end_idx]
+        
+        # Scan this batch
+        repos = scanner.scan_repos_batch(
+            batch_repo_names, 
+            force_refresh=force_refresh, 
+            cache_manager=cache_manager
+        )
+        
+        # Add groups and tags to each repo
+        for repo in repos:
+            repo['groups'] = repo_groups.get_repo_groups(repo['name'])
+            repo['tags'] = repo_groups.get_tags(repo['name'])
+        
+        return jsonify({
+            "success": True,
+            "repos": repos,
+            "batch": batch_index,
+            "total": total_repos,
+            "loaded": end_idx,
+            "has_more": end_idx < total_repos
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/repos/list', methods=['GET'])
+def list_repo_names():
+    """Get just the list of repository names (fast, for batch loading)."""
+    try:
+        repo_names = scanner.find_repositories()
+        return jsonify({
+            "success": True,
+            "repos": repo_names,
+            "total": len(repo_names)
+        })
     except Exception as e:
         return jsonify({
             "success": False,

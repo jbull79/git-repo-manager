@@ -379,8 +379,26 @@ function toggleAutoRefresh(event) {
     }
 }
 
-// Load all repositories
+// Load all repositories (with batch loading support)
+let batchLoadingEnabled = true;
+let batchSize = 10;
+let totalRepos = 0;
+let loadedRepos = [];
+let isLoadingBatches = false;
+
 async function loadRepositories(forceRefresh = false) {
+    // Check if batch loading is enabled from settings
+    const useBatchLoading = batchLoadingEnabled && !forceRefresh;
+    
+    if (useBatchLoading) {
+        await loadRepositoriesBatched(forceRefresh);
+    } else {
+        await loadRepositoriesAll(forceRefresh);
+    }
+}
+
+// Load all repositories at once (original method)
+async function loadRepositoriesAll(forceRefresh = false) {
     showLoading(true);
     
     try {
@@ -430,6 +448,223 @@ async function loadRepositories(forceRefresh = false) {
     } finally {
         showLoading(false);
     }
+}
+
+// Load repositories in batches with progressive rendering
+async function loadRepositoriesBatched(forceRefresh = false) {
+    if (isLoadingBatches) {
+        console.log('Batch loading already in progress, skipping...');
+        return;
+    }
+    
+    isLoadingBatches = true;
+    showLoading(true);
+    loadedRepos = [];
+    
+    try {
+        // First, get total count (fast)
+        const listResponse = await fetch(`${API_BASE}/repos/list`);
+        const listData = await listResponse.json();
+        
+        if (!listData.success) {
+            throw new Error(listData.error || 'Failed to get repository list');
+        }
+        
+        totalRepos = listData.total || 0;
+        updateLoadingProgress(0, totalRepos);
+        
+        if (totalRepos === 0) {
+            renderRepositories([]);
+            updateRepoCount(0);
+            return;
+        }
+        
+        // Clear container and show initial state
+        const container = document.getElementById('reposContainer');
+        if (container) {
+            container.innerHTML = '';
+            container.classList.remove('hidden');
+        }
+        const emptyState = document.getElementById('emptyState');
+        if (emptyState) emptyState.classList.add('hidden');
+        
+        // Load batches progressively
+        let batchIndex = 0;
+        let hasMore = true;
+        
+        while (hasMore) {
+            const params = new URLSearchParams();
+            params.append('batch', batchIndex);
+            params.append('batch_size', batchSize);
+            if (forceRefresh) params.append('force_refresh', 'true');
+            
+            const response = await fetch(`${API_BASE}/repos/batch?${params.toString()}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load batch');
+            }
+            
+            // Add new repos to our list
+            if (data.repos && data.repos.length > 0) {
+                loadedRepos.push(...data.repos);
+                
+                // Render progressively (append new cards)
+                renderRepositoriesProgressive(data.repos);
+                
+                // Update progress
+                updateLoadingProgress(data.loaded || loadedRepos.length, data.total || totalRepos);
+            }
+            
+            hasMore = data.has_more || false;
+            batchIndex++;
+            
+            // Small delay to allow UI to update
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        // Apply filters after all repos are loaded
+        applyFiltersToLoadedRepos();
+        
+        // Update final count
+        updateRepoCount(loadedRepos.length);
+        allReposData = loadedRepos;
+        
+    } catch (error) {
+        console.error('Error loading repositories in batches:', error);
+        showToast('Error loading repositories: ' + error.message, 'error');
+        renderRepositories([]);
+    } finally {
+        showLoading(false);
+        isLoadingBatches = false;
+        hideLoadingProgress();
+    }
+}
+
+// Render repositories progressively (append to existing)
+function renderRepositoriesProgressive(newRepos) {
+    const container = document.getElementById('reposContainer');
+    if (!container) return;
+    
+    newRepos.forEach(repo => {
+        try {
+            const cardHtml = createRepoCard(repo);
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = cardHtml;
+            const cardElement = tempDiv.firstElementChild;
+            if (cardElement) {
+                container.appendChild(cardElement);
+                
+                // Attach event listeners for this card
+                const updateBtn = document.getElementById(`updateBtn-${repo.name}`);
+                if (updateBtn) {
+                    updateBtn.addEventListener('click', () => pullRepo(repo.name));
+                }
+                
+                const branchToggle = document.getElementById(`branchToggle-${repo.name}`);
+                if (branchToggle) {
+                    branchToggle.addEventListener('click', () => toggleBranchList(repo.name));
+                }
+                
+                const checkbox = document.getElementById(`repoCheckbox-${repo.name}`);
+                if (checkbox) {
+                    checkbox.addEventListener('change', (e) => {
+                        if (e.target.checked) {
+                            selectedRepos.add(repo.name);
+                        } else {
+                            selectedRepos.delete(repo.name);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error creating card for repo:', repo.name, error);
+        }
+    });
+}
+
+// Apply filters to already loaded repos
+function applyFiltersToLoadedRepos() {
+    const search = document.getElementById('searchInput')?.value || '';
+    const status = document.getElementById('statusFilter')?.value || '';
+    const group = document.getElementById('groupFilter')?.value || '';
+    const tag = document.getElementById('tagFilter')?.value || '';
+    const sort = document.getElementById('sortSelect')?.value || '';
+    
+    let filtered = [...loadedRepos];
+    
+    if (search) {
+        filtered = filtered.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+    }
+    
+    if (status) {
+        filtered = filtered.filter(r => r.status?.state === status);
+    }
+    
+    if (group) {
+        filtered = filtered.filter(r => r.groups?.includes(group));
+    }
+    
+    if (tag) {
+        filtered = filtered.filter(r => r.tags?.includes(tag));
+    }
+    
+    // Sort
+    if (sort === 'name') {
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === 'status') {
+        filtered.sort((a, b) => (a.status?.state || '').localeCompare(b.status?.state || ''));
+    } else if (sort === 'date') {
+        filtered.sort((a, b) => {
+            const dateA = a.last_commit?.date || '';
+            const dateB = b.last_commit?.date || '';
+            return dateB.localeCompare(dateA);
+        });
+    }
+    
+    // Re-render with filtered results
+    renderRepositories(filtered);
+}
+
+// Update loading progress indicator
+function updateLoadingProgress(loaded, total) {
+    const progressContainer = document.getElementById('loadingProgressContainer');
+    const progressBar = document.getElementById('loadingProgressBar');
+    const progressText = document.getElementById('loadingProgressText');
+    
+    if (progressContainer) {
+        progressContainer.classList.remove('hidden');
+    }
+    
+    if (progressBar && progressText) {
+        const percentage = total > 0 ? Math.round((loaded / total) * 100) : 0;
+        progressBar.style.width = `${percentage}%`;
+        progressText.textContent = `Loading repositories... ${loaded} / ${total} (${percentage}%)`;
+    }
+}
+
+function hideLoadingProgress() {
+    const progressBar = document.getElementById('loadingProgressBar');
+    const progressText = document.getElementById('loadingProgressText');
+    const progressContainer = document.getElementById('loadingProgressContainer');
+    
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressText) progressText.textContent = 'Loading complete!';
+    
+    // Hide progress after a short delay
+    setTimeout(() => {
+        if (progressContainer) {
+            progressContainer.classList.add('hidden');
+        }
+        if (progressText) {
+            progressText.textContent = 'Loading repositories...';
+        }
+    }, 500);
 }
 
 function applyFilters() {
@@ -1955,7 +2190,12 @@ async function loadSettings() {
             document.getElementById('settingsAutoRefresh').value = settings.auto_refresh_interval || 30;
             document.getElementById('settingsMaxLogEntries').value = settings.max_activity_log_entries || 1000;
             document.getElementById('settingsCacheTtl').value = settings.cache_ttl_seconds || 600;
-            document.getElementById('settingsCacheTtl').value = settings.cache_ttl_seconds || 600;
+            document.getElementById('settingsBatchSize').value = settings.batch_size || 10;
+            document.getElementById('settingsParallelWorkers').value = settings.parallel_workers || 5;
+            
+            // Update batch loading settings
+            batchSize = settings.batch_size || 10;
+            batchLoadingEnabled = true; // Enable by default
         } else {
             showToast('Failed to load settings', 'error');
         }
@@ -1973,6 +2213,8 @@ async function handleSettingsSubmit(event) {
     const autoRefresh = parseInt(document.getElementById('settingsAutoRefresh').value);
     const maxLogEntries = parseInt(document.getElementById('settingsMaxLogEntries').value);
     const cacheTtl = parseInt(document.getElementById('settingsCacheTtl').value);
+    const batchSize = parseInt(document.getElementById('settingsBatchSize').value);
+    const parallelWorkers = parseInt(document.getElementById('settingsParallelWorkers').value);
     
     if (!hostGitPath) {
         showToast('Host git repository path is required', 'error');
@@ -2004,6 +2246,16 @@ async function handleSettingsSubmit(event) {
         return;
     }
     
+    if (batchSize < 5 || batchSize > 50) {
+        showToast('Batch size must be between 5 and 50', 'error');
+        return;
+    }
+    
+    if (parallelWorkers < 1 || parallelWorkers > 20) {
+        showToast('Parallel workers must be between 1 and 20', 'error');
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_BASE}/settings`, {
             method: 'PUT',
@@ -2014,7 +2266,9 @@ async function handleSettingsSubmit(event) {
                 git_path: gitPath,
                 auto_refresh_interval: autoRefresh,
                 max_activity_log_entries: maxLogEntries,
-                cache_ttl_seconds: cacheTtl
+                cache_ttl_seconds: cacheTtl,
+                batch_size: batchSize,
+                parallel_workers: parallelWorkers
             })
         });
         
