@@ -140,4 +140,63 @@ class RepoGroups:
         for tags in self.groups.get('tags', {}).values():
             all_tags.update(tags)
         return sorted(list(all_tags))
+    
+    def get_or_create_default_behind_group(self) -> str:
+        """Get or create the default 'Behind' group for behind repos."""
+        DEFAULT_GROUP_NAME = "Behind"
+        DEFAULT_GROUP_COLOR = "#EF4444"  # Red color
+        
+        # Find existing group with this name
+        for group_id, group in self.groups.get('groups', {}).items():
+            if group.get('name') == DEFAULT_GROUP_NAME:
+                return group_id
+        
+        # Create the group if it doesn't exist
+        group = self.create_group(DEFAULT_GROUP_NAME, [], DEFAULT_GROUP_COLOR)
+        return group['id']
+    
+    def sync_behind_repos_to_default_group(self, repos: List[Dict]):
+        """Automatically sync repos with 'behind' status to the default 'Behind' group.
+        
+        This function ensures the 'Behind' group always contains exactly the repos
+        that have 'behind' status. It adds repos that are behind and removes repos
+        that are no longer behind.
+        """
+        group_id = self.get_or_create_default_behind_group()
+        group = self.groups['groups'][group_id]
+        
+        # Get current repos in the group
+        current_repos = set(group.get('repos', []))
+        
+        # Find all repos that are behind from the provided repos
+        behind_repos = set()
+        for repo in repos:
+            status = repo.get('status', {})
+            if status.get('state') == 'behind':
+                behind_repos.add(repo['name'])
+        
+        # Add repos that are behind but not in the group
+        repos_to_add = behind_repos - current_repos
+        for repo_name in repos_to_add:
+            if repo_name not in group['repos']:
+                group['repos'].append(repo_name)
+        
+        # Remove repos that are no longer behind but are in the group
+        # Only remove repos that we've checked (in the provided repos list)
+        checked_repo_names = {repo['name'] for repo in repos}
+        repos_to_remove = (current_repos & checked_repo_names) - behind_repos
+        for repo_name in repos_to_remove:
+            if repo_name in group['repos']:
+                group['repos'].remove(repo_name)
+        
+        # Save if there were changes
+        if repos_to_add or repos_to_remove:
+            self._save_groups()
+    
+    def get_group_repos(self, group_name: str) -> List[str]:
+        """Get all repositories in a group by name."""
+        for group in self.groups.get('groups', {}).values():
+            if group.get('name') == group_name:
+                return group.get('repos', [])
+        return []
 

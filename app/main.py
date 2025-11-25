@@ -83,6 +83,9 @@ def list_repos():
             parallel_workers=parallel_workers
         )
         
+        # Automatically sync behind repos to default "Behind" group
+        repo_groups.sync_behind_repos_to_default_group(repos)
+        
         # Add groups and tags to each repo
         for repo in repos:
             repo['groups'] = repo_groups.get_repo_groups(repo['name'])
@@ -162,6 +165,9 @@ def list_repos_batch():
             force_refresh=force_refresh, 
             cache_manager=cache_manager
         )
+        
+        # Automatically sync behind repos to default "Behind" group
+        repo_groups.sync_behind_repos_to_default_group(repos)
         
         # Add groups and tags to each repo
         for repo in repos:
@@ -251,11 +257,14 @@ def pull_repo(repo_name):
         result = operations.pull_repo(repo_name)
         status_code = 200 if result["success"] else 400
         
-        # If pull was successful, get updated repo info and include it in response
+        # If pull was successful, get updated repo info and sync behind group
         if result["success"]:
             # Get fresh repo info (bypasses cache since we just invalidated it)
             repo_info = scanner.get_repo_info(repo_name)
             if repo_info:
+                # Sync the behind group with this single repo update
+                repo_groups.sync_behind_repos_to_default_group([repo_info])
+                
                 # Add groups and tags
                 repo_info['groups'] = repo_groups.get_repo_groups(repo_name)
                 repo_info['tags'] = repo_groups.get_tags(repo_name)
@@ -277,6 +286,19 @@ def pull_all_repos():
         repo_names = scanner.find_repositories()
         result = operations.pull_all_repos(repo_names)
         status_code = 200 if result["success"] else 207  # Multi-status
+        
+        # After pulling all repos, rescan and sync the behind group
+        if result["success"]:
+            # Rescan all repos to get updated status
+            repos = scanner.scan_all_repos(
+                force_refresh=True,  # Force refresh to get latest status
+                cache_manager=cache_manager,
+                batch_size=settings.get("batch_size", 10),
+                parallel_workers=settings.get("parallel_workers", 5)
+            )
+            # Sync the behind group with all repos
+            repo_groups.sync_behind_repos_to_default_group(repos)
+        
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({
@@ -697,6 +719,19 @@ def bulk_pull():
         
         result = operations.pull_all_repos(repo_names)
         status_code = 200 if result["success"] else 207
+        
+        # After bulk pull, rescan updated repos and sync the behind group
+        if result["success"]:
+            # Rescan the updated repos to get latest status
+            updated_repos = []
+            for repo_name in repo_names:
+                repo_info = scanner.get_repo_info(repo_name)
+                if repo_info:
+                    updated_repos.append(repo_info)
+            # Sync the behind group with updated repos
+            if updated_repos:
+                repo_groups.sync_behind_repos_to_default_group(updated_repos)
+        
         return jsonify(result), status_code
     except Exception as e:
         return jsonify({

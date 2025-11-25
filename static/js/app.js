@@ -402,18 +402,8 @@ async function loadRepositoriesAll(forceRefresh = false) {
     showLoading(true);
     
     try {
-        const search = document.getElementById('searchInput')?.value || '';
-        const status = document.getElementById('statusFilter')?.value || '';
-        const group = document.getElementById('groupFilter')?.value || '';
-        const tag = document.getElementById('tagFilter')?.value || '';
-        const sort = document.getElementById('sortSelect')?.value || '';
-        
+        // Don't send filter parameters - we'll filter client-side using cached data
         const params = new URLSearchParams();
-        if (search) params.append('search', search);
-        if (status) params.append('status', status);
-        if (group) params.append('group', group);
-        if (tag) params.append('tag', tag);
-        if (sort) params.append('sort', sort);
         if (forceRefresh) params.append('force_refresh', 'true');
         
         const response = await fetch(`${API_BASE}/repos?${params.toString()}`);
@@ -432,11 +422,8 @@ async function loadRepositoriesAll(forceRefresh = false) {
             if (allReposData.length > 0) {
                 console.log('First repo:', allReposData[0]); // Debug log
             }
-            renderRepositories(allReposData);
-            const countBadge = document.getElementById('repoCountBadge');
-            if (countBadge) {
-                countBadge.textContent = allReposData.length;
-            }
+            // Apply filters to the loaded data (will show all if no filters)
+            applyFiltersToCachedData(allReposData);
         } else {
             console.error('Failed to load repos:', data.error);
             showToast('Failed to load repositories: ' + (data.error || 'Unknown error'), 'error');
@@ -528,12 +515,13 @@ async function loadRepositoriesBatched(forceRefresh = false) {
             await new Promise(resolve => setTimeout(resolve, 50));
         }
         
-        // Apply filters after all repos are loaded
-        applyFiltersToLoadedRepos();
-        
-        // Update final count
-        updateRepoCount(loadedRepos.length);
+        // Store loaded repos in allReposData for filtering
         allReposData = loadedRepos;
+        
+        // Apply filters after all repos are loaded (using cached data)
+        applyFiltersToCachedData(loadedRepos);
+        
+        // Update final count (will be updated by applyFiltersToCachedData with filtered count)
         
     } catch (error) {
         console.error('Error loading repositories in batches:', error);
@@ -588,47 +576,13 @@ function renderRepositoriesProgressive(newRepos) {
     });
 }
 
-// Apply filters to already loaded repos
+// This function is now replaced by applyFiltersToCachedData
+// Keeping for backwards compatibility but redirecting to new function
 function applyFiltersToLoadedRepos() {
-    const search = document.getElementById('searchInput')?.value || '';
-    const status = document.getElementById('statusFilter')?.value || '';
-    const group = document.getElementById('groupFilter')?.value || '';
-    const tag = document.getElementById('tagFilter')?.value || '';
-    const sort = document.getElementById('sortSelect')?.value || '';
-    
-    let filtered = [...loadedRepos];
-    
-    if (search) {
-        filtered = filtered.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+    const reposToFilter = allReposData && allReposData.length > 0 ? allReposData : loadedRepos;
+    if (reposToFilter && reposToFilter.length > 0) {
+        applyFiltersToCachedData(reposToFilter);
     }
-    
-    if (status) {
-        filtered = filtered.filter(r => r.status?.state === status);
-    }
-    
-    if (group) {
-        filtered = filtered.filter(r => r.groups?.includes(group));
-    }
-    
-    if (tag) {
-        filtered = filtered.filter(r => r.tags?.includes(tag));
-    }
-    
-    // Sort
-    if (sort === 'name') {
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sort === 'status') {
-        filtered.sort((a, b) => (a.status?.state || '').localeCompare(b.status?.state || ''));
-    } else if (sort === 'date') {
-        filtered.sort((a, b) => {
-            const dateA = a.last_commit?.date || '';
-            const dateB = b.last_commit?.date || '';
-            return dateB.localeCompare(dateA);
-        });
-    }
-    
-    // Re-render with filtered results
-    renderRepositories(filtered);
 }
 
 // Update loading progress indicator
@@ -668,7 +622,66 @@ function hideLoadingProgress() {
 }
 
 function applyFilters() {
-    loadRepositories();
+    // Use cached data instead of making new API calls
+    // Check if we have data loaded (either from batch or all-at-once loading)
+    const reposToFilter = allReposData && allReposData.length > 0 ? allReposData : loadedRepos;
+    
+    if (reposToFilter && reposToFilter.length > 0) {
+        // Filter using cached data
+        applyFiltersToCachedData(reposToFilter);
+    } else {
+        // No cached data available, need to load first
+        loadRepositories();
+    }
+}
+
+// Apply filters to cached repository data
+function applyFiltersToCachedData(repos) {
+    const search = document.getElementById('searchInput')?.value || '';
+    const status = document.getElementById('statusFilter')?.value || '';
+    const group = document.getElementById('groupFilter')?.value || '';
+    const tag = document.getElementById('tagFilter')?.value || '';
+    const sort = document.getElementById('sortSelect')?.value || '';
+    
+    let filtered = [...repos];
+    
+    if (search) {
+        filtered = filtered.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+    }
+    
+    if (status) {
+        filtered = filtered.filter(r => r.status?.state === status);
+    }
+    
+    if (group) {
+        filtered = filtered.filter(r => r.groups?.includes(group));
+    }
+    
+    if (tag) {
+        filtered = filtered.filter(r => r.tags?.includes(tag));
+    }
+    
+    // Sort
+    if (sort === 'name') {
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === 'status') {
+        filtered.sort((a, b) => (a.status?.state || '').localeCompare(b.status?.state || ''));
+    } else if (sort === 'date') {
+        filtered.sort((a, b) => {
+            const dateA = a.last_commit?.date || '';
+            const dateB = b.last_commit?.date || '';
+            return dateB.localeCompare(dateA);
+        });
+    }
+    
+    // Re-render with filtered results
+    renderRepositories(filtered);
+    
+    // Update count badge with filtered count
+    const countBadge = document.getElementById('repoCountBadge');
+    if (countBadge) {
+        countBadge.textContent = filtered.length;
+    }
 }
 
 function updateRepoCount(count) {
