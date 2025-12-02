@@ -19,7 +19,8 @@ class Settings:
             "cache_ttl_seconds": 600,  # Cache TTL in seconds (default: 10 minutes)
             "theme": "light",
             "batch_size": 25,  # Number of repos to process per batch (optimized for large repo counts)
-            "parallel_workers": 10  # Number of parallel workers for batch processing (optimized for speed)
+            "parallel_workers": 10,  # Number of parallel workers for batch processing (optimized for speed)
+            "pull_strategy": "merge"  # Strategy for handling diverged branches: "merge" (default), "rebase", or "reset"
         }
         self.settings = self._load_settings()
     

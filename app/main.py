@@ -88,6 +88,8 @@ def list_repos():
         
         # Automatically sync behind repos to default "Behind" group
         repo_groups.sync_behind_repos_to_default_group(repos)
+        # Automatically sync diverged repos to default "Diverged" group
+        repo_groups.sync_diverged_repos_to_default_group(repos)
         
         # Add groups and tags to each repo
         for repo in repos:
@@ -175,6 +177,8 @@ def list_repos_batch():
         
         # Automatically sync behind repos to default "Behind" group
         repo_groups.sync_behind_repos_to_default_group(repos)
+        # Automatically sync diverged repos to default "Diverged" group
+        repo_groups.sync_diverged_repos_to_default_group(repos)
         
         # Add groups and tags to each repo
         for repo in repos:
@@ -261,7 +265,14 @@ def repo_status(repo_name):
 def pull_repo(repo_name):
     """Pull updates for a specific repository."""
     try:
-        result = operations.pull_repo(repo_name)
+        # Get pull strategy from request or settings (default: merge)
+        pull_strategy = None
+        if request.is_json and request.json:
+            pull_strategy = request.json.get('pull_strategy')
+        if not pull_strategy:
+            pull_strategy = settings.get('pull_strategy', 'merge')
+        
+        result = operations.pull_repo(repo_name, pull_strategy=pull_strategy)
         status_code = 200 if result["success"] else 400
         
         # If pull was successful, get updated repo info and sync behind group
@@ -271,6 +282,8 @@ def pull_repo(repo_name):
             if repo_info:
                 # Sync the behind group with this single repo update
                 repo_groups.sync_behind_repos_to_default_group([repo_info])
+                # Sync the diverged group with this single repo update
+                repo_groups.sync_diverged_repos_to_default_group([repo_info])
                 
                 # Add groups and tags
                 repo_info['groups'] = repo_groups.get_repo_groups(repo_name)
@@ -289,9 +302,16 @@ def pull_repo(repo_name):
 def pull_all_repos():
     """Pull updates for all repositories."""
     try:
+        # Get pull strategy from request or settings (default: merge)
+        pull_strategy = None
+        if request.is_json and request.json:
+            pull_strategy = request.json.get('pull_strategy')
+        if not pull_strategy:
+            pull_strategy = settings.get('pull_strategy', 'merge')
+        
         # Get list of all repos
         repo_names = scanner.find_repositories()
-        result = operations.pull_all_repos(repo_names)
+        result = operations.pull_all_repos(repo_names, pull_strategy=pull_strategy)
         status_code = 200 if result["success"] else 207  # Multi-status
         
         # After pulling all repos, rescan and sync the behind group
@@ -719,8 +739,17 @@ def pull_all_group_repos(group_id):
         results = []
         updated_repos = []
         
+        # Get pull strategy from request or settings (default: merge)
+        pull_strategy = None
+        if request.is_json and request.json:
+            pull_strategy = request.json.get('pull_strategy')
+        if not pull_strategy:
+            pull_strategy = settings.get('pull_strategy', 'merge')
+        if not pull_strategy:
+            pull_strategy = settings.get('pull_strategy', 'merge')
+        
         for repo_name in repo_names:
-            result = operations.pull_repo(repo_name)
+            result = operations.pull_repo(repo_name, pull_strategy=pull_strategy)
             results.append({
                 "repo": repo_name,
                 "success": result.get("success", False),
@@ -739,6 +768,8 @@ def pull_all_group_repos(group_id):
         # Sync the behind group after updates
         if updated_repos:
             repo_groups.sync_behind_repos_to_default_group(updated_repos)
+            # Sync the diverged group after updates
+            repo_groups.sync_diverged_repos_to_default_group(updated_repos)
         
         # Determine overall success
         all_success = all(r["success"] for r in results)
@@ -827,7 +858,14 @@ def bulk_pull():
                 "error": "No repositories specified"
             }), 400
         
-        result = operations.pull_all_repos(repo_names)
+        # Get pull strategy from request or settings (default: merge)
+        pull_strategy = None
+        if request.is_json and request.json:
+            pull_strategy = request.json.get('pull_strategy')
+        if not pull_strategy:
+            pull_strategy = settings.get('pull_strategy', 'merge')
+        
+        result = operations.pull_all_repos(repo_names, pull_strategy=pull_strategy)
         status_code = 200 if result["success"] else 207
         
         # After bulk pull, rescan updated repos and sync the behind group
@@ -841,6 +879,8 @@ def bulk_pull():
             # Sync the behind group with updated repos
             if updated_repos:
                 repo_groups.sync_behind_repos_to_default_group(updated_repos)
+                # Sync the diverged group with updated repos
+                repo_groups.sync_diverged_repos_to_default_group(updated_repos)
         
         return jsonify(result), status_code
     except Exception as e:

@@ -586,6 +586,12 @@ function renderRepositoriesProgressive(newRepos) {
             updateBtn.addEventListener('click', () => pullRepo(repo.name));
         }
         
+        const detailsToggle = element.querySelector(`#detailsToggle-${CSS.escape(repo.name)}`);
+        if (detailsToggle) {
+            detailsToggle.addEventListener('click', () => toggleDetails(repo.name));
+            initializeDetailsToggle(repo.name);
+        }
+        
         const branchToggle = element.querySelector(`#branchToggle-${CSS.escape(repo.name)}`);
         if (branchToggle) {
             branchToggle.addEventListener('click', () => toggleBranchList(repo.name));
@@ -767,6 +773,12 @@ function renderRepositories(repos) {
             updateBtn.addEventListener('click', () => pullRepo(repo.name));
         }
         
+        const detailsToggle = document.getElementById(`detailsToggle-${repo.name}`);
+        if (detailsToggle) {
+            detailsToggle.addEventListener('click', () => toggleDetails(repo.name));
+            initializeDetailsToggle(repo.name);
+        }
+        
         const branchToggle = document.getElementById(`branchToggle-${repo.name}`);
         if (branchToggle) {
             branchToggle.addEventListener('click', () => toggleBranchList(repo.name));
@@ -829,12 +841,17 @@ function createRepoCard(repo) {
                     </div>
                     <h3 class="text-xl font-bold text-black dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
                 </div>
-                <div class="ml-2 flex-shrink-0">
+                <div class="ml-2 flex-shrink-0 flex items-center gap-2">
                     ${statusBadge}
+                    <button id="detailsToggle-${repo.name}" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="Toggle details">
+                        <svg class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
                 </div>
             </div>
             
-            <div class="space-y-3">
+            <div id="repoDetails-${repo.name}" class="space-y-3">
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-gray-600 dark:text-gray-400">Branch:</span>
                     <span class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium rounded">${escapeHtml(repo.current_branch)}</span>
@@ -862,44 +879,44 @@ function createRepoCard(repo) {
                     </div>
                 </div>
                 ` : ''}
-                
-                ${(repo.local_branches && repo.local_branches.length > 0) || (repo.remote_branches && repo.remote_branches.length > 0) ? `
-                <div class="border-t dark:border-gray-700 pt-3">
-                    <button id="branchToggle-${repo.name}" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                        Branches
-                    </button>
-                    <div id="branchList-${repo.name}" class="hidden mt-2 branch-list">
-                        ${repo.local_branches && repo.local_branches.length > 0 ? `
-                        <div class="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">Local:</div>
-                        <div class="flex flex-wrap gap-1 mb-2">
-                            ${repo.local_branches.map(branch => `
-                                <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">${escapeHtml(branch)}</span>
-                            `).join('')}
-                        </div>
-                        ` : ''}
-                        ${repo.remote_branches && repo.remote_branches.length > 0 ? `
-                        <div class="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">Remote:</div>
-                        <div class="flex flex-wrap gap-1">
-                            ${repo.remote_branches.map(branch => `
-                                <span class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-xs rounded">${escapeHtml(branch)}</span>
-                            `).join('')}
-                        </div>
-                        ` : ''}
+            </div>
+            
+            ${(repo.local_branches && repo.local_branches.length > 0) || (repo.remote_branches && repo.remote_branches.length > 0) ? `
+            <div class="border-t dark:border-gray-700 pt-3 mt-3">
+                <button id="branchToggle-${repo.name}" class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                    Branches
+                </button>
+                <div id="branchList-${repo.name}" class="hidden mt-2 branch-list">
+                    ${repo.local_branches && repo.local_branches.length > 0 ? `
+                    <div class="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">Local:</div>
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        ${repo.local_branches.map(branch => `
+                            <span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">${escapeHtml(branch)}</span>
+                        `).join('')}
                     </div>
+                    ` : ''}
+                    ${repo.remote_branches && repo.remote_branches.length > 0 ? `
+                    <div class="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">Remote:</div>
+                    <div class="flex flex-wrap gap-1">
+                        ${repo.remote_branches.map(branch => `
+                            <span class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-xs rounded">${escapeHtml(branch)}</span>
+                        `).join('')}
+                    </div>
+                    ` : ''}
                 </div>
-                ` : ''}
-                
-                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button id="updateBtn-${repo.name}" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                        </svg>
-                        Update Repository
-                    </button>
-                </div>
+            </div>
+            ` : ''}
+            
+            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 mt-3">
+                <button id="updateBtn-${repo.name}" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Update Repository
+                </button>
             </div>
         </div>
     `;
@@ -934,6 +951,31 @@ function getStatusBadge(status) {
 }
 
 // Toggle branch list
+function toggleDetails(repoName) {
+    const detailsSection = document.getElementById(`repoDetails-${repoName}`);
+    const toggle = document.getElementById(`detailsToggle-${repoName}`);
+    
+    if (!detailsSection || !toggle) return;
+    
+    const svg = toggle.querySelector('svg');
+    if (detailsSection.classList.contains('hidden')) {
+        detailsSection.classList.remove('hidden');
+        if (svg) svg.style.transform = 'rotate(180deg)';
+    } else {
+        detailsSection.classList.add('hidden');
+        if (svg) svg.style.transform = 'rotate(0deg)';
+    }
+}
+
+// Initialize details toggle state (expanded by default)
+function initializeDetailsToggle(repoName) {
+    const toggle = document.getElementById(`detailsToggle-${repoName}`);
+    if (toggle) {
+        const svg = toggle.querySelector('svg');
+        if (svg) svg.style.transform = 'rotate(180deg)'; // Point down when expanded
+    }
+}
+
 function toggleBranchList(repoName) {
     const branchList = document.getElementById(`branchList-${repoName}`);
     const toggle = document.getElementById(`branchToggle-${repoName}`);
@@ -1017,6 +1059,11 @@ function updateSingleRepo(repo) {
             const updateBtn = document.getElementById(`updateBtn-${repo.name}`);
             if (updateBtn) {
                 updateBtn.addEventListener('click', () => pullRepo(repo.name));
+            }
+            
+            const detailsToggle = document.getElementById(`detailsToggle-${repo.name}`);
+            if (detailsToggle) {
+                detailsToggle.addEventListener('click', () => toggleDetails(repo.name));
             }
             
             const branchToggle = document.getElementById(`branchToggle-${repo.name}`);
