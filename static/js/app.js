@@ -1578,6 +1578,14 @@ async function loadStats() {
         
         if (statsData.success) {
             renderStats(statsData.stats, cacheData.success ? cacheData.stats : null);
+            
+            // Show message if stats are from cache or if no cache available
+            if (statsData.stats && statsData.stats.message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg text-center';
+                messageDiv.innerHTML = `<p class="text-sm text-yellow-800 dark:text-yellow-200">${statsData.stats.message}</p>`;
+                container.appendChild(messageDiv);
+            }
         } else {
             console.error('Failed to load stats:', statsData.error);
             container.innerHTML = `<div class="text-center py-8 text-red-500 dark:text-red-400">Error loading statistics: ${statsData.error || 'Unknown error'}</div>`;
@@ -2208,6 +2216,11 @@ function renderGroups(groups) {
                     <h3 class="text-lg font-bold text-gray-800 dark:text-white">${escapeHtml(group.name)}</h3>
                 </div>
                 <div class="flex gap-2">
+                    ${(group.repos || []).length > 0 ? `
+                    <button onclick="updateGroupRepos('${group.id}')" class="px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 text-sm font-medium shadow-sm hover:shadow transition-all">
+                        Update All
+                    </button>
+                    ` : ''}
                     <button onclick="editGroup('${group.id}')" class="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-medium shadow-sm hover:shadow transition-all">
                         Edit
                     </button>
@@ -2367,6 +2380,62 @@ async function deleteGroup(groupId) {
         }
     } catch (error) {
         showToast('Error deleting group: ' + error.message, 'error');
+    }
+}
+
+async function updateGroupRepos(groupId) {
+    // Get group info to show name in confirmation
+    let groupName = 'this group';
+    try {
+        const groupsResponse = await fetch(`${API_BASE}/groups`);
+        const groupsData = await groupsResponse.json();
+        if (groupsData.success) {
+            const group = groupsData.groups.find(g => g.id === groupId);
+            if (group) {
+                groupName = group.name;
+            }
+        }
+    } catch (e) {
+        // Ignore error, just use default name
+    }
+    
+    if (!confirm(`Update all repositories in "${groupName}"?`)) return;
+    
+    try {
+        showToast('Updating repositories in group...', 'info');
+        
+        const response = await fetch(`${API_BASE}/groups/${groupId}/pull-all`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success || data.results) {
+            const successCount = data.results.filter(r => r.success).length;
+            const totalCount = data.results.length;
+            
+            if (successCount === totalCount) {
+                showToast(`Successfully updated all ${totalCount} repository${totalCount !== 1 ? 'ies' : ''} in group`, 'success');
+            } else {
+                showToast(`Updated ${successCount} of ${totalCount} repositories in group`, 'warning');
+            }
+            
+            // Update individual repos in the UI if we have updated repo data
+            if (data.updated_repos && Array.isArray(data.updated_repos)) {
+                for (const repo of data.updated_repos) {
+                    updateSingleRepo(repo);
+                }
+            } else {
+                // Fallback: refresh all repos if we don't have individual updates
+                await loadRepositories(true);
+            }
+            
+            // Refresh groups to update the "Behind" group if needed
+            await loadGroups();
+        } else {
+            showToast('Failed to update group repositories: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error updating group repositories: ' + error.message, 'error');
     }
 }
 

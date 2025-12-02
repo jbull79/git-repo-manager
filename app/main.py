@@ -10,7 +10,7 @@ from app.settings import Settings
 from app.cache import CacheManager
 
 # Application version
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 
 # Get the base directory (parent of app/)
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -453,12 +453,41 @@ def delete_schedule(schedule_id):
 # Statistics endpoint
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Get overall statistics."""
+    """Get overall statistics. Uses cached data only for fast response."""
     try:
-        # Use cached data if available for faster stats
-        # Don't use batch processing for stats - just get cached data or do a quick scan
-        repos = scanner.scan_all_repos(force_refresh=False, cache_manager=cache_manager, 
-                                      batch_size=None, parallel_workers=None)
+        # Only use cached data - never trigger a fresh scan to avoid timeouts
+        cached_repos = cache_manager.get('all')
+        
+        # If no cached data, return empty stats rather than scanning (which would timeout)
+        if cached_repos is None:
+            # Try to get just the count of repos without scanning
+            try:
+                repo_names = scanner.find_repositories()  # This is fast - just lists directories
+                total_repos = len(repo_names)
+            except:
+                total_repos = 0
+            
+            return jsonify({
+                "success": True,
+                "stats": {
+                    "total_repos": total_repos,
+                    "repos_with_changes": 0,
+                    "status_counts": {
+                        'behind': 0,
+                        'ahead': 0,
+                        'up_to_date': 0,
+                        'diverged': 0,
+                        'no_remote': 0,
+                        'error': 0
+                    },
+                    "activity": activity_log.get_stats(),
+                    "cached": False,
+                    "message": "No cached data available. Please refresh repositories first."
+                }
+            })
+        
+        # We have cached data - calculate stats from it
+        repos = cached_repos
         
         status_counts = {
             'behind': 0,
@@ -486,7 +515,8 @@ def get_stats():
                 "total_repos": total_repos,
                 "repos_with_changes": repos_with_changes,
                 "status_counts": status_counts,
-                "activity": activity_stats
+                "activity": activity_stats,
+                "cached": True
             }
         })
     except Exception as e:
@@ -654,6 +684,72 @@ def remove_repo_from_group(group_id, repo_name):
         return jsonify({
             "success": True
         })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/groups/<group_id>/pull-all', methods=['POST'])
+def pull_all_group_repos(group_id):
+    """Pull updates for all repositories in a group."""
+    try:
+        # Get the group
+        groups = repo_groups.get_groups()
+        group = next((g for g in groups if g.get('id') == group_id), None)
+        
+        if not group:
+            return jsonify({
+                "success": False,
+                "error": "Group not found"
+            }), 404
+        
+        # Get repositories in the group
+        repo_names = group.get('repos', [])
+        
+        if not repo_names:
+            return jsonify({
+                "success": True,
+                "message": "No repositories in group",
+                "results": []
+            })
+        
+        # Pull all repos in the group
+        results = []
+        updated_repos = []
+        
+        for repo_name in repo_names:
+            result = operations.pull_repo(repo_name)
+            results.append({
+                "repo": repo_name,
+                "success": result.get("success", False),
+                "message": result.get("message") or result.get("error", "Unknown error")
+            })
+            
+            if result.get("success"):
+                # Get updated repo info (bypasses cache since we just invalidated it)
+                repo_info = scanner.get_repo_info(repo_name)
+                if repo_info:
+                    # Add groups and tags
+                    repo_info['groups'] = repo_groups.get_repo_groups(repo_name)
+                    repo_info['tags'] = repo_groups.get_tags(repo_name)
+                    updated_repos.append(repo_info)
+        
+        # Sync the behind group after updates
+        if updated_repos:
+            repo_groups.sync_behind_repos_to_default_group(updated_repos)
+        
+        # Determine overall success
+        all_success = all(r["success"] for r in results)
+        status_code = 200 if all_success else 207  # Multi-status if some failed
+        
+        return jsonify({
+            "success": all_success,
+            "message": f"Updated {sum(1 for r in results if r['success'])} of {len(results)} repositories",
+            "results": results,
+            "updated_repos": updated_repos
+        }), status_code
     except Exception as e:
         return jsonify({
             "success": False,
