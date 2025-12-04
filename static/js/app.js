@@ -2446,7 +2446,7 @@ function renderGroups(groups) {
             <div class="space-y-2 text-sm">
                 <div class="flex items-center gap-2">
                     <span class="font-semibold text-gray-700 dark:text-gray-300">Repositories:</span>
-                    <span class="text-gray-600 dark:text-gray-400">${(group.repos || []).length} repository${(group.repos || []).length !== 1 ? 'ies' : ''}</span>
+                    <span class="text-gray-600 dark:text-gray-400">${(group.repos || []).length} repository${(group.repos || []).length !== 1 ? 's' : ''}</span>
                 </div>
                 ${(group.repos || []).length > 0 ? `
                 <div class="flex flex-wrap gap-1 mt-2">
@@ -2628,7 +2628,7 @@ async function updateGroupRepos(groupId) {
             const totalCount = data.results.length;
             
             if (successCount === totalCount) {
-                showToast(`Successfully updated all ${totalCount} repository${totalCount !== 1 ? 'ies' : ''} in group`, 'success');
+                showToast(`Successfully updated all ${totalCount} repository${totalCount !== 1 ? 's' : ''} in group`, 'success');
             } else {
                 showToast(`Updated ${successCount} of ${totalCount} repositories in group`, 'warning');
             }
