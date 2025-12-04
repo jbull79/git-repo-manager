@@ -576,7 +576,23 @@ def get_activity_log():
 def list_groups():
     """List all groups."""
     try:
-        groups = repo_groups.get_groups()
+        # Check for force_refresh parameter
+        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+        
+        # Check cache first if not forcing refresh
+        groups = None
+        if not force_refresh and cache_manager:
+            cached_groups = cache_manager.get('groups')
+            if cached_groups is not None:
+                groups = cached_groups
+        
+        # If not in cache or forcing refresh, get fresh groups
+        if groups is None:
+            groups = repo_groups.get_groups()
+            if cache_manager:
+                # Cache the result
+                cache_manager.set('groups', groups)
+        
         return jsonify({
             "success": True,
             "groups": groups
@@ -604,6 +620,11 @@ def create_group():
             }), 400
         
         group = repo_groups.create_group(name, repos, color)
+        
+        # Invalidate groups cache
+        if cache_manager:
+            cache_manager.invalidate('groups')
+        
         return jsonify({
             "success": True,
             "group": group
@@ -628,6 +649,10 @@ def update_group(group_id):
                 "error": "Group not found"
             }), 404
         
+        # Invalidate groups cache
+        if cache_manager:
+            cache_manager.invalidate('groups')
+        
         return jsonify({
             "success": True,
             "group": group
@@ -649,6 +674,10 @@ def delete_group(group_id):
                 "success": False,
                 "error": "Group not found"
             }), 404
+        
+        # Invalidate groups cache
+        if cache_manager:
+            cache_manager.invalidate('groups')
         
         return jsonify({
             "success": True
@@ -680,6 +709,10 @@ def add_repo_to_group(group_id):
                 "error": "Group not found"
             }), 404
         
+        # Invalidate groups cache
+        if cache_manager:
+            cache_manager.invalidate('groups')
+        
         return jsonify({
             "success": True
         })
@@ -700,6 +733,10 @@ def remove_repo_from_group(group_id, repo_name):
                 "success": False,
                 "error": "Group not found"
             }), 404
+        
+        # Invalidate groups cache
+        if cache_manager:
+            cache_manager.invalidate('groups')
         
         return jsonify({
             "success": True

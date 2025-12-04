@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         initializeDarkMode();
         initializeEventListeners();
+        initDivergedStrategyModal();
         loadRepositories();
         loadStats();
         loadGroupsAndTags();
@@ -346,7 +347,7 @@ function initializeEventListeners() {
                 showGroupsBtn.classList.remove('bg-blue-600', 'text-white');
                 showGroupsBtn.classList.add('bg-gray-300', 'dark:bg-gray-600', 'text-gray-700', 'dark:text-gray-200');
             });
-            showGroupsBtn.addEventListener('click', () => {
+            showGroupsBtn.addEventListener('click', async () => {
                 const repoCheckboxes = document.getElementById('repoCheckboxes');
                 const groupCheckboxes = document.getElementById('groupCheckboxes');
                 if (groupCheckboxes) groupCheckboxes.classList.remove('hidden');
@@ -355,6 +356,9 @@ function initializeEventListeners() {
                 showGroupsBtn.classList.add('bg-blue-600', 'text-white');
                 showReposBtn.classList.remove('bg-blue-600', 'text-white');
                 showReposBtn.classList.add('bg-gray-300', 'dark:bg-gray-600', 'text-gray-700', 'dark:text-gray-200');
+                
+                // Load groups (will use cached data if already preloaded)
+                await loadGroupsForSchedule(false);
             });
         }
     } catch (error) {
@@ -990,7 +994,16 @@ function toggleBranchList(repoName) {
 }
 
 // Pull single repository
-async function pullRepo(repoName) {
+async function pullRepo(repoName, pullStrategy = null) {
+    // Check if repo is diverged and show strategy selector if no strategy provided
+    if (!pullStrategy) {
+        const repo = allReposData.find(r => r.name === repoName);
+        if (repo && repo.status && repo.status.state === 'diverged') {
+            // Show strategy selector modal
+            return showDivergedStrategyModal(repoName);
+        }
+    }
+    
     const btn = document.getElementById(`updateBtn-${repoName}`);
     const originalText = btn ? btn.innerHTML : '';
     
@@ -1001,8 +1014,13 @@ async function pullRepo(repoName) {
     }
     
     try {
+        const requestBody = pullStrategy ? { pull_strategy: pullStrategy } : {};
         const response = await fetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/pull`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
         });
         const data = await response.json();
         
@@ -1027,6 +1045,68 @@ async function pullRepo(repoName) {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
+    }
+}
+
+// Track current diverged repo being handled
+let currentDivergedRepo = null;
+
+// Show diverged strategy selection modal
+function showDivergedStrategyModal(repoName) {
+    const modal = document.getElementById('divergedStrategyModal');
+    const repoNameElement = document.getElementById('divergedRepoName');
+    
+    if (repoNameElement) {
+        repoNameElement.textContent = repoName;
+    }
+    
+    // Reset to default strategy (merge)
+    const mergeRadio = document.querySelector('input[name="divergedStrategy"][value="merge"]');
+    if (mergeRadio) {
+        mergeRadio.checked = true;
+    }
+    
+    currentDivergedRepo = repoName;
+    modal.classList.remove('hidden');
+}
+
+// Initialize diverged strategy modal event listeners (call once on page load)
+function initDivergedStrategyModal() {
+    const modal = document.getElementById('divergedStrategyModal');
+    const confirmBtn = document.getElementById('confirmDivergedStrategy');
+    const cancelBtn = document.getElementById('cancelDivergedStrategy');
+    const closeBtn = document.getElementById('closeDivergedStrategyModal');
+    
+    const closeModal = () => {
+        modal.classList.add('hidden');
+        currentDivergedRepo = null;
+    };
+    
+    const handleConfirm = () => {
+        if (!currentDivergedRepo) return;
+        
+        const selectedStrategy = document.querySelector('input[name="divergedStrategy"]:checked')?.value || 'merge';
+        closeModal();
+        pullRepo(currentDivergedRepo, selectedStrategy);
+    };
+    
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', handleConfirm);
+    }
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeModal);
+    }
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeModal);
+    }
+    
+    // Close on backdrop click
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
     }
 }
 
@@ -1451,21 +1531,23 @@ async function openScheduleForm(schedule = null) {
 function closeScheduleForm() {
     document.getElementById('scheduleFormModal').classList.add('hidden');
     currentEditingSchedule = null;
+    // Clear cached groups data when form is closed to ensure fresh data on next open
+    cachedGroupsData = null;
+    groupsLoadingPromise = null;
 }
+
+// Track groups data and loading state
+let cachedGroupsData = null;
+let groupsLoadingPromise = null;
 
 async function loadReposForSchedule() {
     try {
-        const [reposResponse, groupsResponse] = await Promise.all([
-            fetch(`${API_BASE}/repos`),
-            fetch(`${API_BASE}/groups`)
-        ]);
-        
+        // Load repos and preload groups in parallel (groups will be cached on backend)
+        const reposResponse = await fetch(`${API_BASE}/repos`);
         const reposData = await reposResponse.json();
-        const groupsData = await groupsResponse.json();
         
-        // Get selected repos and groups from current editing schedule
+        // Get selected repos from current editing schedule
         const selectedRepos = currentEditingSchedule && currentEditingSchedule.repos ? currentEditingSchedule.repos : [];
-        const selectedGroups = currentEditingSchedule && currentEditingSchedule.groups ? currentEditingSchedule.groups : [];
         
         if (reposData.success && reposData.repos) {
             const container = document.getElementById('repoCheckboxes');
@@ -1484,29 +1566,114 @@ async function loadReposForSchedule() {
             }
         }
         
-        if (groupsData.success && groupsData.groups) {
-            const container = document.getElementById('groupCheckboxes');
-            if (container) {
-                container.innerHTML = groupsData.groups.map(group => {
-                    const isSelected = selectedGroups.includes(group.name);
-                    return `
-                        <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
-                            <input type="checkbox" value="group:${escapeHtml(group.name)}" 
-                                   ${isSelected ? 'checked' : ''}
-                                   class="schedule-group-checkbox w-4 h-4 text-pink-600 rounded">
-                            <div class="flex items-center gap-2">
-                                <div class="w-3 h-3 rounded-full" style="background-color: ${group.color || '#3B82F6'}"></div>
-                                <span class="text-gray-700 dark:text-gray-300 font-medium">${escapeHtml(group.name)}</span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400">(${(group.repos || []).length} repos)</span>
-                            </div>
-                        </label>
-                    `;
-                }).join('');
+        // Preload groups in the background (non-blocking)
+        // This will use cached data if available, making it fast
+        loadGroupsForSchedule(true); // true = preload mode (don't render yet)
+    } catch (error) {
+        console.error('Error loading repositories for schedule:', error);
+        showToast('Error loading repositories: ' + error.message, 'error');
+    }
+}
+
+async function loadGroupsForSchedule(preloadOnly = false) {
+    // If groups are already cached, use them immediately
+    if (cachedGroupsData) {
+        if (!preloadOnly) {
+            renderGroupsForSchedule(cachedGroupsData);
+        }
+        return;
+    }
+    
+    // If groups are already loading, wait for that promise
+    if (groupsLoadingPromise) {
+        try {
+            const groupsData = await groupsLoadingPromise;
+            if (!preloadOnly) {
+                renderGroupsForSchedule(groupsData);
+            }
+        } catch (error) {
+            if (!preloadOnly) {
+                showGroupsError();
             }
         }
+        return;
+    }
+    
+    // Start loading groups
+    groupsLoadingPromise = (async () => {
+        try {
+            const container = document.getElementById('groupCheckboxes');
+            if (!preloadOnly && container) {
+                container.innerHTML = '<div class="text-center py-4 text-gray-500 dark:text-gray-400">Loading groups...</div>';
+            }
+            
+            const groupsResponse = await fetch(`${API_BASE}/groups`);
+            const groupsData = await groupsResponse.json();
+            
+            if (groupsData.success && groupsData.groups) {
+                // Cache the groups data
+                cachedGroupsData = groupsData.groups;
+                
+                if (!preloadOnly) {
+                    renderGroupsForSchedule(groupsData.groups);
+                }
+                return groupsData.groups;
+            } else {
+                if (!preloadOnly) {
+                    showGroupsError('No groups found');
+                }
+                return null;
+            }
+        } catch (error) {
+            console.error('Error loading groups for schedule:', error);
+            if (!preloadOnly) {
+                showGroupsError('Error loading groups');
+            }
+            throw error;
+        } finally {
+            groupsLoadingPromise = null;
+        }
+    })();
+    
+    try {
+        await groupsLoadingPromise;
     } catch (error) {
-        console.error('Error loading repositories/groups for schedule:', error);
-        showToast('Error loading repositories/groups: ' + error.message, 'error');
+        // Error already handled in the promise
+    }
+}
+
+function renderGroupsForSchedule(groups) {
+    const container = document.getElementById('groupCheckboxes');
+    if (!container) return;
+    
+    // Get selected groups from current editing schedule
+    const selectedGroups = currentEditingSchedule && currentEditingSchedule.groups ? currentEditingSchedule.groups : [];
+    
+    if (groups && groups.length > 0) {
+        container.innerHTML = groups.map(group => {
+            const isSelected = selectedGroups.includes(group.name);
+            return `
+                <label class="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-600 rounded cursor-pointer">
+                    <input type="checkbox" value="group:${escapeHtml(group.name)}" 
+                           ${isSelected ? 'checked' : ''}
+                           class="schedule-group-checkbox w-4 h-4 text-pink-600 rounded">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 rounded-full" style="background-color: ${group.color || '#3B82F6'}"></div>
+                        <span class="text-gray-700 dark:text-gray-300 font-medium">${escapeHtml(group.name)}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">(${(group.repos || []).length} repos)</span>
+                    </div>
+                </label>
+            `;
+        }).join('');
+    } else {
+        container.innerHTML = '<div class="text-center py-4 text-gray-500 dark:text-gray-400">No groups found</div>';
+    }
+}
+
+function showGroupsError(message = 'Error loading groups') {
+    const container = document.getElementById('groupCheckboxes');
+    if (container) {
+        container.innerHTML = `<div class="text-center py-4 text-red-500">${message}</div>`;
     }
 }
 
