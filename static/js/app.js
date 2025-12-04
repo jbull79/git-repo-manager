@@ -2149,17 +2149,36 @@ function renderActivityLog(logs) {
         };
         const config = statusConfig[log.status] || statusConfig.warning;
         
+        // Format operation name for display
+        const operationDisplay = log.operation === 'scheduled_pull' 
+            ? 'Scheduled Pull' 
+            : log.operation === 'pull' 
+            ? 'Manual Pull'
+            : log.operation === 'pull_all'
+            ? 'Pull All'
+            : log.operation.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        
+        // Check if this is a scheduled operation
+        const isScheduled = log.operation === 'scheduled_pull';
+        
         return `
-            <div class="bg-gradient-to-r ${config.bg} ${config.darkBg} border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 shadow-sm hover:shadow-md transition-all">
+            <div class="bg-gradient-to-r ${config.bg} ${config.darkBg} border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 shadow-sm hover:shadow-md transition-all ${isScheduled ? 'border-l-4 border-l-purple-500' : ''}">
                 <div class="flex items-start justify-between gap-4">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-2">
                             <div class="p-1.5 bg-white dark:bg-gray-800 rounded">
-                                <svg class="w-4 h-4 ${config.text} ${config.darkText}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${config.icon}"></path>
-                                </svg>
+                                ${isScheduled ? `
+                                    <svg class="w-4 h-4 ${config.text} ${config.darkText}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                ` : `
+                                    <svg class="w-4 h-4 ${config.text} ${config.darkText}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${config.icon}"></path>
+                                    </svg>
+                                `}
                             </div>
-                            <span class="px-2.5 py-1 bg-white dark:bg-gray-800 ${config.text} ${config.darkText} text-xs font-semibold rounded-full">${log.operation}</span>
+                            <span class="px-2.5 py-1 bg-white dark:bg-gray-800 ${isScheduled ? 'text-purple-800 dark:text-purple-200' : config.text + ' ' + config.darkText} text-xs font-semibold rounded-full">${operationDisplay}</span>
+                            ${isScheduled ? '<span class="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs font-medium rounded">Scheduled</span>' : ''}
                             <span class="font-semibold text-gray-800 dark:text-white truncate">${escapeHtml(log.repo)}</span>
                         </div>
                         ${log.message ? `<div class="text-sm text-gray-700 dark:text-gray-300 mt-1 ml-8">${escapeHtml(log.message)}</div>` : ''}
