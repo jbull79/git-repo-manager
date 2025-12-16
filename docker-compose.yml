@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   git-repo-manager:
     build: .
@@ -8,6 +6,8 @@ services:
       - "5010:5010"
     volumes:
       - ${HOST_GIT_PATH:-~/git}:/git
+      - ${HOST_GIT_WD_PATH:-~/git-wd}:/git-wd
+      - ${HOST_GIT_LOCAL_PATH:-~/git-local}:/git-local
       - ./data:/app/data
       - ${HOST_SSH_PATH:-~/.ssh}:/home/appuser/.ssh:ro
       - ~/.gitconfig:/home/appuser/.gitconfig:ro

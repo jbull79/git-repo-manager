@@ -557,12 +557,42 @@ def get_activity_log():
         limit = int(request.args.get('limit', 100))
         repo = request.args.get('repo')
         operation = request.args.get('operation')
+        status = request.args.get('status')
+        include_debug = request.args.get('include_debug', 'true').lower() == 'true'
         
-        logs = activity_log.get_logs(limit=limit, repo=repo, operation=operation)
+        logs = activity_log.get_logs(
+            limit=limit, 
+            repo=repo, 
+            operation=operation,
+            status=status,
+            include_debug=include_debug
+        )
         return jsonify({
             "success": True,
             "logs": logs,
             "count": len(logs)
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/activity/debug', methods=['POST'])
+def add_debug_log():
+    """Add a debug log entry."""
+    try:
+        data = request.get_json()
+        message = data.get('message', 'Debug message')
+        repo = data.get('repo', 'system')
+        details = data.get('details', {})
+        
+        log_entry = activity_log.log_debug(message=message, repo=repo, details=details)
+        
+        return jsonify({
+            "success": True,
+            "log": log_entry
         })
     except Exception as e:
         return jsonify({
@@ -950,6 +980,8 @@ def get_settings():
 @app.route('/api/settings', methods=['PUT'])
 def update_settings():
     """Update settings."""
+    global scanner, operations, schedule_manager
+    
     try:
         data = request.get_json()
         
@@ -962,8 +994,30 @@ def update_settings():
                     "error": f"Container path does not exist: {new_path}. Make sure the volume is mounted correctly."
                 }), 400
         
+        # Log what we're about to save
+        activity_log.log_debug(
+            f"Updating settings with data",
+            repo="system",
+            details={
+                "data_keys": list(data.keys()),
+                "git_path": data.get('git_path'),
+                "host_ssh_path": data.get('host_ssh_path')
+            }
+        )
+        
         # Update settings
         settings.update(**data)
+        
+        # Verify what was actually saved
+        saved_git_path = settings.get("git_path")
+        activity_log.log_debug(
+            f"Settings updated - verifying saved values",
+            repo="system",
+            details={
+                "saved_git_path": saved_git_path,
+                "requested_git_path": data.get('git_path')
+            }
+        )
         
         # If cache_ttl_seconds changed, update cache manager
         if 'cache_ttl_seconds' in data:
@@ -972,8 +1026,18 @@ def update_settings():
         
         # If git_path changed, reinitialize services
         if 'git_path' in data:
-            global scanner, operations, schedule_manager
             new_git_path = settings.get("git_path")
+            # Clear cache when path changes
+            cache_manager.invalidate_all()
+            # Log the change
+            activity_log.log_debug(
+                f"Git path changed to {new_git_path}",
+                repo="system",
+                details={
+                    "old_path": git_path, 
+                    "new_path": new_git_path
+                }
+            )
             scanner = GitScanner(base_path=new_git_path)
             operations = GitOperations(base_path=new_git_path, activity_log=activity_log, cache_manager=cache_manager)
             schedule_manager = ScheduleManager(
@@ -983,13 +1047,24 @@ def update_settings():
                 cache_manager=cache_manager
             )
         
-        # Note: host_git_path and host_ssh_path are informational only - actual mounts are in docker-compose.yml
-        # We store them so users can see what they configured
+        # Note: host_ssh_path is informational only - actual mounts are in docker-compose.yml
+        # We store it so users can see what they configured
+        
+        message = "Settings saved successfully."
+        
+        if 'git_path' in data:
+            new_git_path = settings.get("git_path")
+            if new_git_path != git_path:
+                message = f"Settings saved. Container path changed to {new_git_path} - cache cleared and repositories reloaded."
+        
+        if 'host_ssh_path' in data:
+            message += " " if message != "Settings saved successfully." else ""
+            message += "Note: SSH path changes require updating docker-compose.yml and restarting the container."
         
         return jsonify({
             "success": True,
             "settings": settings.get_all(),
-            "message": "Settings saved. If you changed the host git path or SSH path, update HOST_GIT_PATH or HOST_SSH_PATH in .env or docker-compose.yml and restart the container."
+            "message": message
         })
     except Exception as e:
         return jsonify({

@@ -47,7 +47,7 @@ class ActivityLog:
             "timestamp": datetime.utcnow().isoformat(),
             "operation": operation,  # 'pull', 'pull_all', 'schedule_pull'
             "repo": repo,
-            "status": status,  # 'success', 'error', 'warning'
+            "status": status,  # 'success', 'error', 'warning', 'debug'
             "message": message,
             "details": details or {}
         }
@@ -58,8 +58,19 @@ class ActivityLog:
         
         return log_entry
     
+    def log_debug(self, message: str, repo: Optional[str] = None, details: Optional[Dict] = None):
+        """Log a debug message."""
+        return self.log_operation(
+            operation='debug',
+            repo=repo or 'system',
+            status='debug',
+            message=message,
+            details=details
+        )
+    
     def get_logs(self, limit: int = 100, repo: Optional[str] = None, 
-                 operation: Optional[str] = None) -> List[Dict]:
+                 operation: Optional[str] = None, status: Optional[str] = None,
+                 include_debug: bool = True) -> List[Dict]:
         """Get activity logs with optional filtering."""
         logs = self._load_logs()
         
@@ -70,6 +81,14 @@ class ActivityLog:
         # Filter by operation if specified
         if operation:
             logs = [log for log in logs if log.get('operation') == operation]
+        
+        # Filter by status if specified
+        if status:
+            logs = [log for log in logs if log.get('status') == status]
+        
+        # Filter out debug logs if include_debug is False
+        if not include_debug:
+            logs = [log for log in logs if log.get('status') != 'debug']
         
         # Sort by timestamp (newest first) and limit
         logs.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
@@ -99,10 +118,13 @@ class ActivityLog:
             repo = log.get('repo', 'unknown')
             repo_counts[repo] = repo_counts.get(repo, 0) + 1
         
+        debug_count = len([log for log in logs if log.get('status') == 'debug'])
+        
         return {
             "total_operations": total_operations,
             "successful": successful,
             "failed": failed,
+            "debug": debug_count,
             "success_rate": (successful / total_operations * 100) if total_operations > 0 else 0,
             "operation_counts": operation_counts,
             "repo_counts": repo_counts,

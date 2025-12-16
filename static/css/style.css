@@ -485,6 +485,23 @@ header h1 {
     animation-fill-mode: both;
 }
 
+/* Ensure repository cards have equal height and button stays at bottom */
+#reposContainer {
+    align-items: stretch;
+}
+
+#reposContainer > div {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.repo-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
 #reposContainer > div:nth-child(1) { animation-delay: 0.05s; }
 #reposContainer > div:nth-child(2) { animation-delay: 0.1s; }
 #reposContainer > div:nth-child(3) { animation-delay: 0.15s; }
@@ -532,6 +549,53 @@ select {
 #loadingIndicator .animate-spin {
     border-top-color: #3b82f6;
     border-right-color: #3b82f6;
+}
+
+/* Sidebar styles */
+#sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+#sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+#sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 3px;
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.7);
+}
+
+.dark #sidebar::-webkit-scrollbar-thumb {
+    background-color: rgba(75, 85, 99, 0.5);
+}
+
+.dark #sidebar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(75, 85, 99, 0.7);
+}
+
+/* Sidebar navigation item active state */
+#sidebar nav button.active {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.dark #sidebar nav button.active {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+/* Sidebar overlay transition */
+#sidebarOverlay {
+    transition: opacity 0.3s ease;
 }
 
 /* Enhanced empty state */

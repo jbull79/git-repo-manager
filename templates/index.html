@@ -8,94 +8,141 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors">
-    <div class="container mx-auto px-4 py-8 max-w-7xl">
-        <!-- Header -->
-        <header class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 transition-colors border border-gray-200 dark:border-gray-700">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <div class="flex items-center gap-3 flex-wrap">
-                        <div class="p-2.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-md">
-                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                            </svg>
-                        </div>
-                        <div class="flex-1 min-w-0 relative">
-                            <h1 class="text-3xl font-bold text-gray-800 dark:text-white">
-                                Git Repository Manager
-                            </h1>
-                            <p class="text-gray-600 dark:text-gray-400 text-sm mt-0.5">Monitor and manage your git repositories</p>
-                            <span class="absolute bottom-0 right-0 text-xs text-gray-400 dark:text-gray-500 font-mono">v{{ version }}</span>
-                        </div>
-                        <span id="repoCountBadge" class="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-full shadow-md flex items-center gap-1.5 whitespace-nowrap">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
-                            </svg>
-                            <span>0</span>
-                        </span>
-                    </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-3">
-                    <button id="darkModeToggle" class="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors" title="Toggle dark mode">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
-                        </svg>
-                    </button>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="autoRefreshToggle" class="w-4 h-4 text-blue-600 rounded">
-                        <span class="text-sm text-gray-700 dark:text-gray-300">Auto-refresh</span>
-                    </label>
-                    <button id="refreshBtn" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Refresh repositories (R)">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                        </svg>
-                        Refresh
-                    </button>
-                    <button id="clearCacheBtn" class="px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Clear cache">
+    <!-- Sidebar Toggle Button (Mobile) -->
+    <button id="sidebarToggle" class="fixed top-4 left-4 z-40 lg:hidden p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+        <svg class="w-6 h-6 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+    </button>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-xl transform -translate-x-full lg:translate-x-0 transition-transform duration-300 z-30 overflow-y-auto flex flex-col">
+        <div class="p-6 flex-grow">
+            <div class="flex items-center justify-between mb-8">
+                <h2 class="text-xl font-bold text-gray-800 dark:text-white">Menu</h2>
+                <button id="closeSidebar" class="lg:hidden p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <nav class="space-y-2">
+                <button id="statsBtn" class="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <span class="font-medium">Statistics</span>
+                </button>
+                
+                <button id="groupsBtn" class="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <span class="font-medium">Groups</span>
+                </button>
+                
+                <button id="schedulesBtn" class="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="font-medium">Schedules</span>
+                </button>
+                
+                <button id="activityBtn" class="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="font-medium">Activity Log</span>
+                </button>
+                
+                <button id="settingsBtn" class="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span class="font-medium">Settings</span>
+                </button>
+            </nav>
+            
+            <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <div class="space-y-2">
+                    <button id="clearCacheBtn" class="w-full flex items-center gap-3 px-4 py-2 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm text-gray-600 dark:text-gray-400">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
-                        Clear Cache
-                    </button>
-                    <button id="statsBtn" class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="View statistics">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
-                        Stats
-                    </button>
-                    <button id="pullAllBtn" class="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Update all repositories">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                        </svg>
-                        Update All
-                    </button>
-                    <button id="schedulesBtn" class="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Manage schedules">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Schedules
-                    </button>
-                    <button id="groupsBtn" class="px-4 py-2.5 bg-gradient-to-r from-pink-600 to-pink-700 text-white rounded-lg hover:from-pink-700 hover:to-pink-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Manage groups">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                        </svg>
-                        Groups
-                    </button>
-                    <button id="activityBtn" class="px-4 py-2.5 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white rounded-lg hover:from-yellow-700 hover:to-yellow-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="View activity log">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Activity
-                    </button>
-                    <button id="settingsBtn" class="px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Settings">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        </svg>
-                        Settings
+                        <span>Clear Cache</span>
                     </button>
                 </div>
             </div>
-        </header>
+        </div>
+        
+        <!-- Version at bottom of sidebar -->
+        <div class="p-6 pt-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
+            <div class="text-center">
+                <span class="text-xs text-gray-400 dark:text-gray-500 font-mono">v{{ version }}</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Sidebar Overlay (Mobile) -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden hidden"></div>
+
+    <!-- Main Content -->
+    <div class="lg:ml-64">
+        <div class="container mx-auto px-4 py-6 max-w-7xl">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6 transition-colors border border-gray-200 dark:border-gray-700">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <div class="p-2.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg shadow-md">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h1 class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
+                                    Git Repository Manager
+                                </h1>
+                                <p class="text-gray-600 dark:text-gray-400 text-sm mt-0.5">Monitor and manage your git repositories</p>
+                            </div>
+                            <span id="repoCountBadge" class="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-full shadow-md flex items-center gap-1.5 whitespace-nowrap">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+                                </svg>
+                                <span>0</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Primary Actions -->
+                        <div class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                            <button id="darkModeToggle" class="p-2 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors" title="Toggle dark mode">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                                </svg>
+                            </button>
+                            <label class="flex items-center gap-2 cursor-pointer px-2 py-1">
+                                <input type="checkbox" id="autoRefreshToggle" class="w-4 h-4 text-blue-600 rounded">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Auto</span>
+                            </label>
+                        </div>
+                        <button id="refreshBtn" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Refresh repositories (R)">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span class="hidden sm:inline">Refresh</span>
+                        </button>
+                        <button id="pullAllBtn" class="px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95" title="Update all repositories">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            <span class="hidden sm:inline">Update All</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
 
         <!-- Statistics Dashboard -->
         <div id="statsDashboard" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 mb-6 transition-all border border-gray-200 dark:border-gray-700 page-transition backdrop-blur-sm">
@@ -306,6 +353,27 @@
                         </svg>
                     </button>
                 </div>
+                <div class="mb-4 flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="showDebugLogs" class="w-4 h-4 text-blue-600 rounded" checked>
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Show Debug Logs</span>
+                        </label>
+                        <select id="activityStatusFilter" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 text-sm">
+                            <option value="">All Status</option>
+                            <option value="success">Success</option>
+                            <option value="error">Errors</option>
+                            <option value="warning">Warnings</option>
+                            <option value="debug">Debug Only</option>
+                        </select>
+                    </div>
+                    <button id="refreshActivityLog" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
                 <div id="activityLogContent" class="space-y-2">
                     <!-- Activity log will be loaded here -->
                 </div>
@@ -334,22 +402,6 @@
                 
                 <form id="settingsForm" class="space-y-6">
                     <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                        <h3 class="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">Host Git Repository Path</h3>
-                        <input type="text" id="settingsHostGitPath" required
-                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white mb-2"
-                               placeholder="~/git">
-                        <p class="text-xs text-blue-700 dark:text-blue-300">
-                            <strong>Important:</strong> This is the path on your HOST machine where your git repositories are located.
-                            After changing this, you need to update the <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">HOST_GIT_PATH</code> 
-                            environment variable in your <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">.env</code> file or 
-                            <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">docker-compose.yml</code> and restart the container.
-                        </p>
-                        <div class="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                            <strong>Current value:</strong> <span id="currentHostGitPath" class="font-mono"></span>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
                         <h3 class="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">Host SSH Keys Path</h3>
                         <input type="text" id="settingsHostSshPath" required
                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white mb-2"
@@ -367,14 +419,15 @@
                     
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Container Git Path (read-only)
+                            Container Git Path
                         </label>
-                        <input type="text" id="settingsGitPath" readonly
-                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                        <input type="text" id="settingsGitPath" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                                value="/git">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             This is the path inside the container where git repos are mounted. 
-                            This is typically <code>/git</code> and should not be changed.
+                            Default is <code>/git</code>. You can switch between different mounts by changing this path 
+                            (e.g., <code>/git</code>, <code>/git-wd</code>, <code>/git-local</code>).
                         </p>
                     </div>
                     

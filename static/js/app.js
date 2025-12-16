@@ -26,6 +26,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (e.key === 'Escape') {
                 closeAllModals();
+                // Close sidebar on mobile
+                const sidebar = document.getElementById('sidebar');
+                const sidebarOverlay = document.getElementById('sidebarOverlay');
+                if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                    sidebar.classList.add('-translate-x-full');
+                    if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }
             }
         });
     } catch (error) {
@@ -80,9 +88,53 @@ function closeAllModals() {
     });
 }
 
+// Sidebar management
+function initializeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const closeSidebar = document.getElementById('closeSidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    function openSidebar() {
+        if (sidebar) sidebar.classList.remove('-translate-x-full');
+        if (sidebarOverlay) sidebarOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeSidebarFunc() {
+        if (sidebar) sidebar.classList.add('-translate-x-full');
+        if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', openSidebar);
+    }
+    
+    if (closeSidebar) {
+        closeSidebar.addEventListener('click', closeSidebarFunc);
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebarFunc);
+    }
+    
+    // Close sidebar when clicking on menu items (mobile)
+    const sidebarLinks = sidebar?.querySelectorAll('button');
+    sidebarLinks?.forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth < 1024) { // lg breakpoint
+                closeSidebarFunc();
+            }
+        });
+    });
+}
+
 // Event listeners
 function initializeEventListeners() {
     try {
+        initializeSidebar();
+        
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
@@ -196,6 +248,22 @@ function initializeEventListeners() {
                     activityModal.classList.add('hidden');
                 }
             });
+        }
+        
+        // Activity log filters and controls
+        const showDebugLogs = document.getElementById('showDebugLogs');
+        if (showDebugLogs) {
+            showDebugLogs.addEventListener('change', loadActivityLog);
+        }
+        
+        const activityStatusFilter = document.getElementById('activityStatusFilter');
+        if (activityStatusFilter) {
+            activityStatusFilter.addEventListener('change', loadActivityLog);
+        }
+        
+        const refreshActivityLog = document.getElementById('refreshActivityLog');
+        if (refreshActivityLog) {
+            refreshActivityLog.addEventListener('click', loadActivityLog);
         }
         
         const settingsBtn = document.getElementById('settingsBtn');
@@ -834,7 +902,7 @@ function createRepoCard(repo) {
         : '';
     
     return `
-        <div id="repoCard-${escapeHtml(repo.name)}" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 repo-card${updateClass} transition-all border border-gray-200 dark:border-gray-700">
+        <div id="repoCard-${escapeHtml(repo.name)}" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 repo-card${updateClass} transition-all border border-gray-200 dark:border-gray-700 flex flex-col h-full">
             <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center gap-3 flex-1 min-w-0">
                     ${bulkCheckbox}
@@ -855,7 +923,7 @@ function createRepoCard(repo) {
                 </div>
             </div>
             
-            <div id="repoDetails-${repo.name}" class="space-y-3">
+            <div id="repoDetails-${repo.name}" class="space-y-3 flex-grow">
                 <div class="flex items-center gap-2">
                     <span class="text-sm text-gray-600 dark:text-gray-400">Branch:</span>
                     <span class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium rounded">${escapeHtml(repo.current_branch)}</span>
@@ -914,7 +982,7 @@ function createRepoCard(repo) {
             </div>
             ` : ''}
             
-            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 mt-3">
+            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
                 <button id="updateBtn-${repo.name}" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
@@ -2113,7 +2181,15 @@ async function openActivityModal() {
 
 async function loadActivityLog() {
     try {
-        const response = await fetch(`${API_BASE}/activity?limit=100`);
+        const includeDebug = document.getElementById('showDebugLogs')?.checked ?? true;
+        const statusFilter = document.getElementById('activityStatusFilter')?.value || '';
+        
+        let url = `${API_BASE}/activity?limit=200&include_debug=${includeDebug}`;
+        if (statusFilter) {
+            url += `&status=${statusFilter}`;
+        }
+        
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.success) {
@@ -2145,7 +2221,8 @@ function renderActivityLog(logs) {
         const statusConfig = {
             'success': { bg: 'from-green-50 to-green-100', darkBg: 'dark:from-green-900 dark:to-green-800', text: 'text-green-800', darkText: 'dark:text-green-200', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
             'error': { bg: 'from-red-50 to-red-100', darkBg: 'dark:from-red-900 dark:to-red-800', text: 'text-red-800', darkText: 'dark:text-red-200', icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-            'warning': { bg: 'from-yellow-50 to-yellow-100', darkBg: 'dark:from-yellow-900 dark:to-yellow-800', text: 'text-yellow-800', darkText: 'dark:text-yellow-200', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' }
+            'warning': { bg: 'from-yellow-50 to-yellow-100', darkBg: 'dark:from-yellow-900 dark:to-yellow-800', text: 'text-yellow-800', darkText: 'dark:text-yellow-200', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
+            'debug': { bg: 'from-gray-50 to-gray-100', darkBg: 'dark:from-gray-800 dark:to-gray-700', text: 'text-gray-700', darkText: 'dark:text-gray-300', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' }
         };
         const config = statusConfig[log.status] || statusConfig.warning;
         
@@ -2156,13 +2233,23 @@ function renderActivityLog(logs) {
             ? 'Manual Pull'
             : log.operation === 'pull_all'
             ? 'Pull All'
+            : log.operation === 'debug'
+            ? 'Debug'
             : log.operation.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         
         // Check if this is a scheduled operation
         const isScheduled = log.operation === 'scheduled_pull';
+        const isDebug = log.status === 'debug';
+        
+        // Format details for debug logs
+        const detailsHtml = isDebug && log.details && Object.keys(log.details).length > 0
+            ? `<div class="mt-2 ml-8 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
+                <pre class="whitespace-pre-wrap">${escapeHtml(JSON.stringify(log.details, null, 2))}</pre>
+            </div>`
+            : '';
         
         return `
-            <div class="bg-gradient-to-r ${config.bg} ${config.darkBg} border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 shadow-sm hover:shadow-md transition-all ${isScheduled ? 'border-l-4 border-l-purple-500' : ''}">
+            <div class="bg-gradient-to-r ${config.bg} ${config.darkBg} border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 shadow-sm hover:shadow-md transition-all ${isScheduled ? 'border-l-4 border-l-purple-500' : isDebug ? 'border-l-4 border-l-gray-400 dark:border-l-gray-500 opacity-90' : ''}">
                 <div class="flex items-start justify-between gap-4">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-2">
@@ -2171,17 +2258,23 @@ function renderActivityLog(logs) {
                                     <svg class="w-4 h-4 ${config.text} ${config.darkText}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
+                                ` : isDebug ? `
+                                    <svg class="w-4 h-4 ${config.text} ${config.darkText}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
                                 ` : `
                                     <svg class="w-4 h-4 ${config.text} ${config.darkText}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${config.icon}"></path>
                                     </svg>
                                 `}
                             </div>
-                            <span class="px-2.5 py-1 bg-white dark:bg-gray-800 ${isScheduled ? 'text-purple-800 dark:text-purple-200' : config.text + ' ' + config.darkText} text-xs font-semibold rounded-full">${operationDisplay}</span>
+                            <span class="px-2.5 py-1 bg-white dark:bg-gray-800 ${isScheduled ? 'text-purple-800 dark:text-purple-200' : isDebug ? 'text-gray-600 dark:text-gray-400' : config.text + ' ' + config.darkText} text-xs font-semibold rounded-full">${operationDisplay}</span>
                             ${isScheduled ? '<span class="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs font-medium rounded">Scheduled</span>' : ''}
-                            <span class="font-semibold text-gray-800 dark:text-white truncate">${escapeHtml(log.repo)}</span>
+                            ${isDebug ? '<span class="px-2 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400 text-xs font-medium rounded">Debug</span>' : ''}
+                            ${log.repo && log.repo !== 'system' ? `<span class="font-semibold text-gray-800 dark:text-white truncate">${escapeHtml(log.repo)}</span>` : ''}
                         </div>
-                        ${log.message ? `<div class="text-sm text-gray-700 dark:text-gray-300 mt-1 ml-8">${escapeHtml(log.message)}</div>` : ''}
+                        ${log.message ? `<div class="text-sm ${isDebug ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'} mt-1 ml-8">${escapeHtml(log.message)}</div>` : ''}
+                        ${detailsHtml}
                     </div>
                     <div class="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">${formatDate(log.timestamp)}</div>
                 </div>
@@ -2189,6 +2282,35 @@ function renderActivityLog(logs) {
         `;
     }).join('');
 }
+
+// Debug logging helper
+async function logDebug(message, repo = 'system', details = {}) {
+    try {
+        const response = await fetch(`${API_BASE}/activity/debug`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                repo: repo,
+                details: details
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            // If activity modal is open, refresh it
+            const activityModal = document.getElementById('activityModal');
+            if (activityModal && !activityModal.classList.contains('hidden')) {
+                await loadActivityLog();
+            }
+            return data.log;
+        }
+    } catch (error) {
+        console.error('Error logging debug message:', error);
+    }
+}
+
+// Make logDebug available globally for easy access
+window.logDebug = logDebug;
 
 // Repository Details Modal
 async function openRepoDetails(repoName) {
@@ -2685,8 +2807,6 @@ async function loadSettings() {
         
         if (data.success) {
             const settings = data.settings;
-            document.getElementById('settingsHostGitPath').value = settings.host_git_path || '~/git';
-            document.getElementById('currentHostGitPath').textContent = settings.host_git_path || '~/git';
             document.getElementById('settingsHostSshPath').value = settings.host_ssh_path || '~/.ssh';
             document.getElementById('currentHostSshPath').textContent = settings.host_ssh_path || '~/.ssh';
             // Also show environment variable if available
@@ -2713,8 +2833,8 @@ async function loadSettings() {
 
 async function handleSettingsSubmit(event) {
     event.preventDefault();
+    console.log('Settings form submitted');
     
-    const hostGitPath = document.getElementById('settingsHostGitPath').value.trim();
     const hostSshPath = document.getElementById('settingsHostSshPath').value.trim();
     const gitPath = document.getElementById('settingsGitPath').value.trim();
     const autoRefresh = parseInt(document.getElementById('settingsAutoRefresh').value);
@@ -2723,10 +2843,7 @@ async function handleSettingsSubmit(event) {
     const batchSize = parseInt(document.getElementById('settingsBatchSize').value);
     const parallelWorkers = parseInt(document.getElementById('settingsParallelWorkers').value);
     
-    if (!hostGitPath) {
-        showToast('Host git repository path is required', 'error');
-        return;
-    }
+    console.log('Settings values:', { hostSshPath, gitPath, autoRefresh, maxLogEntries, cacheTtl, batchSize, parallelWorkers });
     
     if (!hostSshPath) {
         showToast('Host SSH keys path is required', 'error');
@@ -2763,15 +2880,22 @@ async function handleSettingsSubmit(event) {
         return;
     }
     
-    // Update local batch size immediately
-    batchSize = batchSize;
+    // Note: batchSize is a const, so we can't reassign it here
+    // The global batchSize variable will be updated when repositories are loaded
     
     try {
+        // Show loading indicator
+        const submitButton = event.target.querySelector('button[type="submit"]');
+        const originalText = submitButton?.textContent;
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Saving...';
+        }
+        
         const response = await fetch(`${API_BASE}/settings`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                host_git_path: hostGitPath,
                 host_ssh_path: hostSshPath,
                 git_path: gitPath,
                 auto_refresh_interval: autoRefresh,
@@ -2782,41 +2906,71 @@ async function handleSettingsSubmit(event) {
             })
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.success) {
-            const hostGitPathChanged = hostGitPath !== document.getElementById('currentHostGitPath').textContent;
-            const hostSshPathChanged = hostSshPath !== document.getElementById('currentHostSshPath').textContent;
+            // Update the current values display
+            const currentHostSshPathEl = document.getElementById('currentHostSshPath');
             
-            if (hostGitPathChanged || hostSshPathChanged) {
-                let message = 'Settings saved. IMPORTANT: ';
-                if (hostGitPathChanged) {
-                    message += 'Update HOST_GIT_PATH ';
-                }
-                if (hostSshPathChanged) {
-                    if (hostGitPathChanged) message += 'and ';
-                    message += 'Update HOST_SSH_PATH ';
-                }
-                message += 'in .env or docker-compose.yml and restart the container for the changes to take effect.';
-                showToast(message, 'warning', 10000);
-            } else {
-                showToast('Settings saved successfully. Reloading repositories...', 'success');
+            // Use the message from the backend (it knows if auto-switching worked)
+            const message = data.message || 'Settings saved successfully.';
+            
+            // Determine toast type based on message content
+            let toastType = 'success';
+            let toastDuration = 5000;
+            if (message.includes('IMPORTANT') || message.includes('restart') || message.includes('docker-compose')) {
+                toastType = 'warning';
+                toastDuration = 10000;
+            } else if (message.includes('switched') || message.includes('reloaded')) {
+                toastType = 'success';
+                toastDuration = 5000;
             }
             
-            document.getElementById('settingsModal').classList.add('hidden');
+            showToast(message, toastType, toastDuration);
+            
+            // Update current values display from the response (not from form values)
+            // This ensures we show what was actually saved
+            const savedSettings = data.settings || {};
+            if (currentHostSshPathEl) {
+                const savedSshPath = savedSettings.host_ssh_path || hostSshPath;
+                currentHostSshPathEl.textContent = savedSshPath;
+                // Also update the input field to match what was saved
+                document.getElementById('settingsHostSshPath').value = savedSshPath;
+            }
+            
+            // Update container path display too
+            const containerPathEl = document.getElementById('settingsGitPath');
+            if (containerPathEl && savedSettings.git_path) {
+                containerPathEl.value = savedSettings.git_path;
+            }
+            
+            // Close modal after a brief delay
+            setTimeout(() => {
+                document.getElementById('settingsModal').classList.add('hidden');
+            }, 500);
             
             // Reload repositories after a short delay
             setTimeout(() => {
-                loadRepositories();
-                if (!hostPathChanged) {
-                    showToast('Settings applied.', 'info');
-                }
+                loadRepositories(true); // Force refresh
             }, 1000);
         } else {
             showToast('Failed to save settings: ' + (data.error || 'Unknown error'), 'error');
+            console.error('Settings save error:', data);
         }
     } catch (error) {
+        console.error('Error saving settings:', error);
         showToast('Error saving settings: ' + error.message, 'error');
+    } finally {
+        // Restore button state
+        const submitButton = event.target.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Save Settings';
+        }
     }
 }
 
