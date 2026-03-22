@@ -526,17 +526,28 @@ input[type="checkbox"] {
     cursor: pointer;
 }
 
-/* Better select dropdowns */
+/* Better select dropdowns — hide native arrow so it doesn't stack with our SVG.
+   Tailwind px-* sets padding-right with higher specificity than bare `select`, so we
+   must reserve space for the chevron with !important or the icon draws under the label. */
 select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-    background-position: right 0.5rem center;
+    background-position: right 0.65rem center;
     background-repeat: no-repeat;
-    background-size: 1.5em 1.5em;
-    padding-right: 2.5rem;
+    background-size: 1.125em 1.125em;
+    padding-right: 3rem !important;
 }
 
 .dark select {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%9ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+}
+
+/* IE/Edge legacy (harmless elsewhere) */
+select::-ms-expand {
+    display: none;
 }
 
 /* Improved focus states */
