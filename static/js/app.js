@@ -1020,24 +1020,26 @@ function createRepoCard(repo) {
     
     return `
         <div id="repoCard-${escapeHtml(repo.name)}" class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 repo-card${updateClass} transition-all border border-gray-200 dark:border-gray-700 flex flex-col h-full">
-            <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-3 flex-1 min-w-0">
-                    ${bulkCheckbox}
-                    <div class="p-2 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg shadow-sm">
-                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-                        </svg>
+            <div class="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        ${bulkCheckbox}
+                        <div class="p-2 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg shadow-sm flex-shrink-0">
+                            <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                            </svg>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-bold text-black dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        ${statusBadge}
+                        <button id="detailsToggle-${repo.name}" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="Toggle details">
+                            <svg class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <div class="ml-2 flex-shrink-0 flex items-center gap-2">
-                    ${statusBadge}
-                    <button id="detailsToggle-${repo.name}" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors" title="Toggle details">
-                        <svg class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                    </button>
-                </div>
+                <h3 class="repo-card-title mt-3 w-full text-xl font-bold text-black dark:text-gray-100 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 leading-snug transition-colors" onclick="openRepoDetails('${escapeHtml(repo.name)}')" title="${escapeHtml(repo.name)}">${escapeHtml(repo.name)}</h3>
             </div>
             
             <div id="repoDetails-${repo.name}" class="space-y-3 flex-grow">
@@ -1047,7 +1049,7 @@ function createRepoCard(repo) {
                     ${isDirty}
                 </div>
                 
-                ${repo.remote_url ? `<div class="text-sm text-gray-600 dark:text-gray-400 truncate" title="${escapeHtml(repo.remote_url)}">
+                ${repo.remote_url ? `<div class="text-sm text-gray-600 dark:text-gray-400 break-words" title="${escapeHtml(repo.remote_url)}">
                     <span class="font-medium">Remote:</span> ${escapeHtml(repo.remote_url)}
                 </div>` : '<div class="text-sm text-yellow-600 dark:text-yellow-400">No remote configured</div>'}
                 ${repo.tracking_branch ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Tracking: <span class="font-mono">${escapeHtml(repo.tracking_branch)}</span></div>` : ''}
