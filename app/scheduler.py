@@ -51,6 +51,14 @@ class ScheduleManager:
             print(f"Error saving schedules: {e}")
             raise  # Re-raise to ensure caller knows save failed
     
+    def shutdown(self):
+        """Stop background scheduler (e.g. before replacing with a new instance)."""
+        try:
+            if self.scheduler.running:
+                self.scheduler.shutdown(wait=False)
+        except Exception as e:
+            print(f"Scheduler shutdown: {e}")
+
     def _start_scheduler(self):
         """Start the scheduler and load existing schedules."""
         if not self.scheduler.running:

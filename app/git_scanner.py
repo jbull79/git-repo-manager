@@ -10,9 +10,14 @@ from git import Repo, InvalidGitRepositoryError
 class GitScanner:
     """Scans and analyzes git repositories."""
     
-    def __init__(self, base_path: str = "/git"):
-        """Initialize scanner with base path to scan."""
+    def __init__(self, base_path: str = "/git", fetch_rate_limiter=None):
+        """Initialize scanner with base path to scan.
+        
+        fetch_rate_limiter: optional FetchRateLimiter — every remote fetch waits for a slot
+        so concurrent scans stay accurate while pacing network traffic.
+        """
         self.base_path = Path(base_path)
+        self._fetch_rate_limiter = fetch_rate_limiter
     
     def find_repositories(self) -> List[str]:
         """Find all git repositories in the base path."""
@@ -56,7 +61,7 @@ class GitScanner:
             if repo.remotes:
                 try:
                     remote_url = repo.remotes.origin.url
-                except:
+                except Exception:
                     remote_url = repo.remotes[0].url if repo.remotes else None
             
             # Get last commit info
@@ -108,16 +113,18 @@ class GitScanner:
                 return status
             
             # Fetch from remote to get latest remote refs before checking status
-            # This ensures we detect divergence accurately
+            # This ensures we detect divergence accurately. Rate limiter paces fetches
+            # without skipping them (each completed fetch yields accurate comparison).
             try:
+                if self._fetch_rate_limiter:
+                    self._fetch_rate_limiter.acquire(timeout=600.0)
                 remote_name = "origin"
                 if remote_name in repo.remotes:
                     repo.remotes[remote_name].fetch()
                 elif len(repo.remotes) > 0:
                     repo.remotes[0].fetch()
-            except Exception as e:
+            except Exception:
                 # If fetch fails, we'll still try to check status with existing refs
-                # but log that we couldn't fetch
                 pass
             
             # Try to find remote tracking branch

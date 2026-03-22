@@ -1,6 +1,31 @@
 // Git Repository Manager - Frontend JavaScript
 
 const API_BASE = '/api';
+
+function getStoredApiKey() {
+    return localStorage.getItem('webRepoApiKey') || '';
+}
+
+function setStoredApiKey(key) {
+    if (key) {
+        localStorage.setItem('webRepoApiKey', key.trim());
+    } else {
+        localStorage.removeItem('webRepoApiKey');
+    }
+}
+
+/** Adds X-API-Key from localStorage when server requires WEB_REPO_API_KEY */
+function apiFetch(url, options = {}) {
+    const opts = { ...options };
+    const headers = new Headers(options.headers || {});
+    const key = getStoredApiKey();
+    if (key) {
+        headers.set('X-API-Key', key);
+    }
+    opts.headers = headers;
+    return fetch(url, opts);
+}
+
 let autoRefreshInterval = null;
 let autoRefreshEnabled = false;
 const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
@@ -14,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeDarkMode();
         initializeEventListeners();
         initDivergedStrategyModal();
+        if (typeof window !== 'undefined' && window.__WEB_REPO_REQUIRE_API_KEY__ && !getStoredApiKey()) {
+            setTimeout(() => showToast('Server requires an API key — open Settings and paste WEB_REPO_API_KEY', 'warning', 12000), 600);
+        }
         loadRepositories();
         loadStats();
         loadGroupsAndTags();
@@ -146,7 +174,7 @@ function initializeEventListeners() {
         if (clearCacheBtn) {
             clearCacheBtn.addEventListener('click', async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/cache/clear`, { method: 'POST' });
+                    const response = await apiFetch(`${API_BASE}/cache/clear`, { method: 'POST' });
                     const data = await response.json();
                     if (data.success) {
                         showToast('Cache cleared successfully', 'success');
@@ -478,7 +506,7 @@ async function loadRepositoriesAll(forceRefresh = false) {
         const params = new URLSearchParams();
         if (forceRefresh) params.append('force_refresh', 'true');
         
-        const response = await fetch(`${API_BASE}/repos?${params.toString()}`);
+        const response = await apiFetch(`${API_BASE}/repos?${params.toString()}`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -522,7 +550,7 @@ async function loadRepositoriesBatched(forceRefresh = false) {
     
     try {
         // First, get total count (fast)
-        const listResponse = await fetch(`${API_BASE}/repos/list`);
+        const listResponse = await apiFetch(`${API_BASE}/repos/list`);
         const listData = await listResponse.json();
         
         if (!listData.success) {
@@ -563,7 +591,7 @@ async function loadRepositoriesBatched(forceRefresh = false) {
                 params.append('batch_size', batchSize);
                 if (forceRefresh) params.append('force_refresh', 'true');
                 
-                const batchPromise = fetch(`${API_BASE}/repos/batch?${params.toString()}`)
+                const batchPromise = apiFetch(`${API_BASE}/repos/batch?${params.toString()}`)
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
@@ -1083,7 +1111,7 @@ async function pullRepo(repoName, pullStrategy = null) {
     
     try {
         const requestBody = pullStrategy ? { pull_strategy: pullStrategy } : {};
-        const response = await fetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/pull`, {
+        const response = await apiFetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/pull`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1257,7 +1285,7 @@ function updateSingleRepo(repo) {
 // Refresh a single repository's data from the server
 async function refreshSingleRepo(repoName) {
     try {
-        const response = await fetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/status?force_refresh=true`);
+        const response = await apiFetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/status?force_refresh=true`);
         const data = await response.json();
         
         if (data.success && data.repo) {
@@ -1280,7 +1308,7 @@ async function pullAllRepos() {
     showLoading(true);
     
     try {
-        const response = await fetch(`${API_BASE}/repos/pull-all`, {
+        const response = await apiFetch(`${API_BASE}/repos/pull-all`, {
             method: 'POST'
         });
         const data = await response.json();
@@ -1390,7 +1418,7 @@ async function loadSchedules(forceRefresh = false) {
         const url = forceRefresh 
             ? `${API_BASE}/schedules?t=${Date.now()}`
             : `${API_BASE}/schedules`;
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: 'GET',
             cache: 'no-cache',
             headers: {
@@ -1498,7 +1526,7 @@ function formatScheduleType(schedule) {
 
 async function toggleSchedule(scheduleId, enabled) {
     try {
-        const response = await fetch(`${API_BASE}/schedules/${scheduleId}`, {
+        const response = await apiFetch(`${API_BASE}/schedules/${scheduleId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })
@@ -1521,7 +1549,7 @@ async function deleteSchedule(scheduleId) {
     if (!confirm('Are you sure you want to delete this schedule?')) return;
     
     try {
-        const response = await fetch(`${API_BASE}/schedules/${scheduleId}`, {
+        const response = await apiFetch(`${API_BASE}/schedules/${scheduleId}`, {
             method: 'DELETE'
         });
         const data = await response.json();
@@ -1542,7 +1570,7 @@ async function deleteSchedule(scheduleId) {
 
 async function editSchedule(scheduleId) {
     try {
-        const response = await fetch(`${API_BASE}/schedules`);
+        const response = await apiFetch(`${API_BASE}/schedules`);
         const data = await response.json();
         
         if (data.success) {
@@ -1611,7 +1639,7 @@ let groupsLoadingPromise = null;
 async function loadReposForSchedule() {
     try {
         // Load repos and preload groups in parallel (groups will be cached on backend)
-        const reposResponse = await fetch(`${API_BASE}/repos`);
+        const reposResponse = await apiFetch(`${API_BASE}/repos`);
         const reposData = await reposResponse.json();
         
         // Get selected repos from current editing schedule
@@ -1675,7 +1703,7 @@ async function loadGroupsForSchedule(preloadOnly = false) {
                 container.innerHTML = '<div class="text-center py-4 text-gray-500 dark:text-gray-400">Loading groups...</div>';
             }
             
-            const groupsResponse = await fetch(`${API_BASE}/groups`);
+            const groupsResponse = await apiFetch(`${API_BASE}/groups`);
             const groupsData = await groupsResponse.json();
             
             if (groupsData.success && groupsData.groups) {
@@ -1794,7 +1822,7 @@ async function handleScheduleSubmit(event) {
             : `${API_BASE}/schedules`;
         const method = currentEditingSchedule ? 'PUT' : 'POST';
         
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(scheduleData)
@@ -1836,8 +1864,8 @@ async function loadStats() {
         let statsResponse, cacheResponse;
         try {
             [statsResponse, cacheResponse] = await Promise.all([
-                fetch(`${API_BASE}/stats`, { signal: controller.signal }),
-                fetch(`${API_BASE}/cache/stats`, { signal: controller.signal })
+                apiFetch(`${API_BASE}/stats`, { signal: controller.signal }),
+                apiFetch(`${API_BASE}/cache/stats`, { signal: controller.signal })
             ]);
             clearTimeout(timeoutId);
         } catch (fetchError) {
@@ -2022,7 +2050,7 @@ function closeCacheDetailsModal() {
 
 async function loadCacheDetails() {
     try {
-        const response = await fetch(`${API_BASE}/cache/stats`);
+        const response = await apiFetch(`${API_BASE}/cache/stats`);
         const data = await response.json();
         
         if (data.success) {
@@ -2152,7 +2180,7 @@ function renderCacheDetails(cacheStats) {
 
 async function clearCache() {
     try {
-        const response = await fetch(`${API_BASE}/cache/clear`, {
+        const response = await apiFetch(`${API_BASE}/cache/clear`, {
             method: 'POST'
         });
         const data = await response.json();
@@ -2189,7 +2217,7 @@ async function loadActivityLog() {
             url += `&status=${statusFilter}`;
         }
         
-        const response = await fetch(url);
+        const response = await apiFetch(url);
         const data = await response.json();
         
         if (data.success) {
@@ -2286,7 +2314,7 @@ function renderActivityLog(logs) {
 // Debug logging helper
 async function logDebug(message, repo = 'system', details = {}) {
     try {
-        const response = await fetch(`${API_BASE}/activity/debug`, {
+        const response = await apiFetch(`${API_BASE}/activity/debug`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2318,7 +2346,7 @@ async function openRepoDetails(repoName) {
     document.getElementById('repoDetailsTitle').textContent = repoName;
     
     try {
-        const response = await fetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/status`);
+        const response = await apiFetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/status`);
         const data = await response.json();
         
         if (data.success) {
@@ -2433,7 +2461,7 @@ async function bulkUpdateSelected() {
     showLoading(true);
     
     try {
-        const response = await fetch(`${API_BASE}/repos/bulk-pull`, {
+        const response = await apiFetch(`${API_BASE}/repos/bulk-pull`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ repos })
@@ -2483,8 +2511,8 @@ function bulkAddTag() {
 async function loadGroupsAndTags() {
     try {
         const [groupsRes, tagsRes] = await Promise.all([
-            fetch(`${API_BASE}/groups`),
-            fetch(`${API_BASE}/tags`)
+            apiFetch(`${API_BASE}/groups`),
+            apiFetch(`${API_BASE}/tags`)
         ]);
         
         const groupsData = await groupsRes.json();
@@ -2521,7 +2549,7 @@ function closeGroupsModal() {
 
 async function loadGroups() {
     try {
-        const response = await fetch(`${API_BASE}/groups?t=${Date.now()}`, {
+        const response = await apiFetch(`${API_BASE}/groups?t=${Date.now()}`, {
             cache: 'no-cache'
         });
         const data = await response.json();
@@ -2633,7 +2661,7 @@ function closeGroupForm() {
 
 async function loadReposForGroup() {
     try {
-        const response = await fetch(`${API_BASE}/repos`);
+        const response = await apiFetch(`${API_BASE}/repos`);
         const data = await response.json();
         
         if (data.success) {
@@ -2677,7 +2705,7 @@ async function handleGroupSubmit(event) {
             : `${API_BASE}/groups`;
         const method = currentEditingGroup ? 'PUT' : 'POST';
         
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(groupData)
@@ -2701,7 +2729,7 @@ async function handleGroupSubmit(event) {
 
 async function editGroup(groupId) {
     try {
-        const response = await fetch(`${API_BASE}/groups`);
+        const response = await apiFetch(`${API_BASE}/groups`);
         const data = await response.json();
         
         if (data.success) {
@@ -2720,7 +2748,7 @@ async function deleteGroup(groupId) {
     if (!confirm('Are you sure you want to delete this group?')) return;
     
     try {
-        const response = await fetch(`${API_BASE}/groups/${groupId}`, {
+        const response = await apiFetch(`${API_BASE}/groups/${groupId}`, {
             method: 'DELETE'
         });
         const data = await response.json();
@@ -2742,7 +2770,7 @@ async function updateGroupRepos(groupId) {
     // Get group info to show name in confirmation
     let groupName = 'this group';
     try {
-        const groupsResponse = await fetch(`${API_BASE}/groups`);
+        const groupsResponse = await apiFetch(`${API_BASE}/groups`);
         const groupsData = await groupsResponse.json();
         if (groupsData.success) {
             const group = groupsData.groups.find(g => g.id === groupId);
@@ -2759,7 +2787,7 @@ async function updateGroupRepos(groupId) {
     try {
         showToast('Updating repositories in group...', 'info');
         
-        const response = await fetch(`${API_BASE}/groups/${groupId}/pull-all`, {
+        const response = await apiFetch(`${API_BASE}/groups/${groupId}/pull-all`, {
             method: 'POST'
         });
         const data = await response.json();
@@ -2802,7 +2830,7 @@ async function openSettingsModal() {
 
 async function loadSettings() {
     try {
-        const response = await fetch(`${API_BASE}/settings`);
+        const response = await apiFetch(`${API_BASE}/settings`);
         const data = await response.json();
         
         if (data.success) {
@@ -2819,6 +2847,15 @@ async function loadSettings() {
             document.getElementById('settingsCacheTtl').value = settings.cache_ttl_seconds || 600;
             document.getElementById('settingsBatchSize').value = settings.batch_size || 25;
             document.getElementById('settingsParallelWorkers').value = settings.parallel_workers || 10;
+            const fetchMaxEl = document.getElementById('settingsFetchMaxPerMinute');
+            if (fetchMaxEl) {
+                fetchMaxEl.value = settings.fetch_max_per_minute != null ? settings.fetch_max_per_minute : 60;
+            }
+            const apiKeyEl = document.getElementById('settingsBrowserApiKey');
+            if (apiKeyEl) {
+                apiKeyEl.value = '';
+                apiKeyEl.placeholder = getStoredApiKey() ? '(key saved — enter new to replace)' : 'Paste API key if server uses WEB_REPO_API_KEY';
+            }
             
             // Update batch loading settings
             batchSize = settings.batch_size || 25;
@@ -2842,8 +2879,10 @@ async function handleSettingsSubmit(event) {
     const cacheTtl = parseInt(document.getElementById('settingsCacheTtl').value);
     const batchSize = parseInt(document.getElementById('settingsBatchSize').value);
     const parallelWorkers = parseInt(document.getElementById('settingsParallelWorkers').value);
+    const fetchMaxEl = document.getElementById('settingsFetchMaxPerMinute');
+    const fetchMaxPerMinute = fetchMaxEl ? parseInt(fetchMaxEl.value, 10) : 60;
     
-    console.log('Settings values:', { hostSshPath, gitPath, autoRefresh, maxLogEntries, cacheTtl, batchSize, parallelWorkers });
+    console.log('Settings values:', { hostSshPath, gitPath, autoRefresh, maxLogEntries, cacheTtl, batchSize, parallelWorkers, fetchMaxPerMinute });
     
     if (!hostSshPath) {
         showToast('Host SSH keys path is required', 'error');
@@ -2880,6 +2919,16 @@ async function handleSettingsSubmit(event) {
         return;
     }
     
+    if (fetchMaxEl && (fetchMaxPerMinute < 6 || fetchMaxPerMinute > 600 || Number.isNaN(fetchMaxPerMinute))) {
+        showToast('Max git fetches per minute must be between 6 and 600', 'error');
+        return;
+    }
+    
+    const browserApiKey = (document.getElementById('settingsBrowserApiKey')?.value || '').trim();
+    if (browserApiKey) {
+        setStoredApiKey(browserApiKey);
+    }
+    
     // Note: batchSize is a const, so we can't reassign it here
     // The global batchSize variable will be updated when repositories are loaded
     
@@ -2892,7 +2941,7 @@ async function handleSettingsSubmit(event) {
             submitButton.textContent = 'Saving...';
         }
         
-        const response = await fetch(`${API_BASE}/settings`, {
+        const response = await apiFetch(`${API_BASE}/settings`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2902,7 +2951,8 @@ async function handleSettingsSubmit(event) {
                 max_activity_log_entries: maxLogEntries,
                 cache_ttl_seconds: cacheTtl,
                 batch_size: batchSize,
-                parallel_workers: parallelWorkers
+                parallel_workers: parallelWorkers,
+                ...(fetchMaxEl ? { fetch_max_per_minute: fetchMaxPerMinute } : {})
             })
         });
         
@@ -2980,7 +3030,7 @@ async function resetSettings() {
     }
     
     try {
-        const response = await fetch(`${API_BASE}/settings/reset`, {
+        const response = await apiFetch(`${API_BASE}/settings/reset`, {
             method: 'POST'
         });
         

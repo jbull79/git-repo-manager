@@ -20,7 +20,9 @@ class Settings:
             "theme": "light",
             "batch_size": 25,  # Number of repos to process per batch (optimized for large repo counts)
             "parallel_workers": 10,  # Number of parallel workers for batch processing (optimized for speed)
-            "pull_strategy": "merge"  # Strategy for handling diverged branches: "merge" (default), "rebase", or "reset"
+            "pull_strategy": "merge",  # Strategy for handling diverged branches: "merge" (default), "rebase", or "reset"
+            # Pace git fetch() calls across all repos (accurate status; avoids remote rate limits)
+            "fetch_max_per_minute": int(os.getenv("FETCH_MAX_PER_MINUTE") or "60"),
         }
         self.settings = self._load_settings()
     

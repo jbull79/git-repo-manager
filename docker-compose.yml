@@ -14,5 +14,9 @@ services:
     environment:
       - FLASK_ENV=production
       - HOST_GIT_PATH=${HOST_GIT_PATH:-~/git}
+      # Optional: require X-API-Key / Authorization: Bearer for all /api/* except health & config
+      - WEB_REPO_API_KEY=${WEB_REPO_API_KEY:-}
+      # Default cap for git fetch pacing (overridable in Settings UI)
+      - FETCH_MAX_PER_MINUTE=${FETCH_MAX_PER_MINUTE:-60}
     restart: unless-stopped
 

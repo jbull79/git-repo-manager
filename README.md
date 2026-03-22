@@ -19,6 +19,8 @@ A Dockerized web application that monitors and manages git repositories, providi
 - **Settings Page**: Configure git repository path and other application settings
 - **Dark Mode**: Toggle between light and dark themes
 - **Modern UI**: Clean, responsive web interface built with Tailwind CSS
+- **Fetch pacing**: Configurable max `git fetch` operations per minute (accurate remote status without hammering hosts)
+- **Optional API key**: Set `WEB_REPO_API_KEY` to require `X-API-Key` on API calls (browser stores key in Settings)
 
 ## Requirements
 
@@ -98,13 +100,18 @@ The web interface provides:
 
 ### Volume Mounting
 
-The container mounts two volumes:
+The container mounts several volumes:
 
-1. **Git Repositories**: `~/git` from your host to `/git` in the container with read-write access. This allows the application to scan, access, and update your git repositories (git pull operations require write access).
+1. **Git Repositories (primary)**: `~/git` from your host to `/git` in the container with read-write access. This allows the application to scan, access, and update your git repositories (git pull operations require write access).
 
    **Note**: You can change the git repository path in the Settings page. If your repositories are in a different location, update the volume mount in `docker-compose.yml` and then configure the path in Settings.
 
-2. **Persistent Data**: `./data` from the project directory to `/app/data` in the container. This stores:
+2. **Optional git mounts**: The default `docker-compose.yml` also mounts:
+   - `~/git-wd` → `/git-wd` (e.g. for worktrees or a second repo root)
+   - `~/git-local` → `/git-local` (e.g. for local-only repos)
+   The app scans **one base path at a time**. In Settings, set **Container Git Path** to the path you want to use (`/git`, `/git-wd`, or `/git-local`). Repos in the other mounts are not scanned unless you switch the path. You can omit these volumes if you only use one repo root.
+
+3. **Persistent Data**: `./data` from the project directory to `/app/data` in the container. This stores:
    - Settings (`settings.json`)
    - Schedules configuration (`schedules.json`)
    - Activity logs (`activity_log.json`)
@@ -154,6 +161,10 @@ volumes:
 
 Then restart: `docker-compose up -d`
 
+### Multiple git volume mounts
+
+`docker-compose.yml` mounts three host directories into the container: `/git`, `/git-wd`, and `/git-local` (via `HOST_GIT_PATH`, `HOST_GIT_WD_PATH`, `HOST_GIT_LOCAL_PATH`). The application uses a single configurable **Container Git Path** in Settings. Only repositories under that path are scanned and shown. To scan a different mount, change the path in Settings (e.g. from `/git` to `/git-wd`) and refresh. To use only one host directory, you can remove the `git-wd` and `git-local` volume entries from `docker-compose.yml` and set the matching env vars only if needed.
+
 ### Permissions
 
 The container runs as a non-root user (`appuser`) for security. If you encounter permission issues, you may need to adjust file permissions on your git repositories.
@@ -202,7 +213,8 @@ If you get "exit code 128" or "could not read from remote repository" errors:
 
 The application provides a REST API:
 
-- `GET /api/health` - Health check
+- `GET /api/health` - Health check (no API key)
+- `GET /api/config` - Version and whether `WEB_REPO_API_KEY` is required (no API key)
 - `GET /api/repos` - List all repositories with status
 - `GET /api/repos/<name>/status` - Get detailed status for a repository
 - `POST /api/repos/<name>/pull` - Pull updates for a specific repository
@@ -242,7 +254,11 @@ The application provides a REST API:
 │   └── repo_groups.json   # Repository groups and tags
 ├── app/
 │   ├── __init__.py
-│   ├── main.py            # Flask application entry point
+│   ├── main.py            # Flask app factory / entry
+│   ├── routes.py          # HTTP routes (blueprint)
+│   ├── services.py        # Shared scanner, operations, scheduler
+│   ├── auth.py            # Optional WEB_REPO_API_KEY check
+│   ├── fetch_rate_limiter.py  # Token bucket for git fetch pacing
 │   ├── git_scanner.py     # Repository scanning logic
 │   ├── git_operations.py  # Git pull operations
 │   ├── scheduler.py       # Scheduled update manager
@@ -264,6 +280,7 @@ The application provides a REST API:
 - Verify that repositories are in `~/git/*` directory
 - Check that each repository has a `.git` folder
 - Ensure Docker volume mount is correct in `docker-compose.yml`
+- **Running without Docker**: `settings.json` may still say `git_path` is `/git` (container path). The app will fall back to your **Host Git Repository Path** (e.g. `~/git`) when `/git` is missing. You can also set **Container Git Path** in Settings to your real host path (e.g. `/Users/you/git`) or set the `GIT_PATH` environment variable before starting the app.
 
 ### Git pull fails
 
@@ -290,7 +307,7 @@ ports:
 ## Security Considerations
 
 - The container runs as a non-root user
-- Git repositories are mounted read-only by default
+- Git repositories are mounted read-write so the app can run `git pull`; restrict host directory permissions if needed
 - SSH keys are optional and should only be mounted if needed
 - The application only performs `git pull` operations (no push/delete)
 
@@ -345,6 +362,12 @@ docker run -d \
 Or use the provided `docker-compose.pull.yml` file (after updating the image name).
 
 For detailed publishing instructions, see [DOCKER.md](DOCKER.md).
+
+## Security & network exposure
+
+- **Bind to localhost** if you only use the UI on the same machine: map the port as `127.0.0.1:5010:5010` in `docker-compose.yml` instead of `5010:5010`, so the app is not reachable from the LAN.
+- **API key (optional)**: set `WEB_REPO_API_KEY` in the environment (see `.env.example`). When set, every `/api/*` request must include the same value in the `X-API-Key` header or `Authorization: Bearer <key>`. The web UI stores the key in **browser localStorage** (Settings → Browser API key). `/api/health` and `/api/config` stay unauthenticated for health checks and client bootstrap.
+- **Do not expose** this service to the public internet without a reverse proxy, TLS, and authentication.
 
 ## License
 
