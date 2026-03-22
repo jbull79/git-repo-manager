@@ -9,11 +9,12 @@ from git import Repo, InvalidGitRepositoryError, GitCommandError
 class GitOperations:
     """Handle git operations like pull."""
     
-    def __init__(self, base_path: str = "/git", activity_log=None, cache_manager=None):
+    def __init__(self, base_path: str = "/git", activity_log=None, cache_manager=None, fetch_rate_limiter=None):
         """Initialize with base path."""
         self.base_path = Path(base_path)
         self.activity_log = activity_log
         self.cache_manager = cache_manager
+        self._fetch_rate_limiter = fetch_rate_limiter
         # Configure git to use SSH with proper settings
         self._configure_git_ssh()
     
@@ -24,7 +25,13 @@ class GitOperations:
         ssh_command = "ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/home/appuser/.ssh/known_hosts"
         os.environ.setdefault('GIT_SSH_COMMAND', ssh_command)
     
-    def pull_repo(self, repo_name: str, pull_strategy: str = "merge") -> Dict:
+    def pull_repo(
+        self,
+        repo_name: str,
+        pull_strategy: str = "merge",
+        force: bool = False,
+        block_on_dirty: bool = True,
+    ) -> Dict:
         """Pull updates for a specific repository.
         
         Args:
@@ -33,6 +40,8 @@ class GitOperations:
                 - "merge": Create a merge commit (default, safest)
                 - "rebase": Rebase local commits on top of remote (cleaner history)
                 - "reset": Reset to match remote exactly (discards local changes, best for automated systems)
+            force: If True, pull even when the working tree has uncommitted changes
+            block_on_dirty: If True (default), refuse to pull when dirty unless force=True
         """
         repo_path = self.base_path / repo_name
         
@@ -50,6 +59,18 @@ class GitOperations:
                     "success": False,
                     "error": "No remote configured"
                 }
+            
+            # Uncommitted / untracked changes can be overwritten by merge/rebase — block unless forced
+            if block_on_dirty and not force:
+                dirty = repo.is_dirty(index=True, working_tree=True, untracked_files=True)
+                if dirty:
+                    return {
+                        "success": False,
+                        "error": "Working tree has uncommitted or untracked changes. Commit or stash first, "
+                        "or confirm to pull anyway (force).",
+                        "code": "dirty_worktree",
+                        "is_dirty": True,
+                    }
             
             # Get current branch
             try:
@@ -186,23 +207,37 @@ class GitOperations:
                 "error": error_msg
             }
     
-    def pull_all_repos(self, repo_names: list, pull_strategy: str = "merge") -> Dict:
+    def pull_all_repos(
+        self,
+        repo_names: list,
+        pull_strategy: str = "merge",
+        force: bool = False,
+        block_on_dirty: bool = True,
+    ) -> Dict:
         """Pull updates for all repositories.
         
         Args:
             repo_names: List of repository names to pull
             pull_strategy: Strategy to use when branches have diverged (see pull_repo for details)
+            force: Passed to each pull_repo
+            block_on_dirty: Passed to each pull_repo
         """
         results = {
             "success": True,
             "total": len(repo_names),
             "succeeded": 0,
             "failed": 0,
+            "skipped_dirty": 0,
             "results": []
         }
         
         for repo_name in repo_names:
-            result = self.pull_repo(repo_name, pull_strategy=pull_strategy)
+            result = self.pull_repo(
+                repo_name,
+                pull_strategy=pull_strategy,
+                force=force,
+                block_on_dirty=block_on_dirty,
+            )
             result["repo"] = repo_name
             results["results"].append(result)
             
@@ -211,6 +246,8 @@ class GitOperations:
             else:
                 results["failed"] += 1
                 results["success"] = False
+                if result.get("code") == "dirty_worktree":
+                    results["skipped_dirty"] += 1
         
         # Invalidate entire cache after bulk pull
         if self.cache_manager:
@@ -226,4 +263,55 @@ class GitOperations:
             )
         
         return results
+
+    def fetch_repo(self, repo_name: str) -> Dict:
+        """Fetch remote refs only (no merge). Updates remote-tracking branches."""
+        repo_path = self.base_path / repo_name
+        if not (repo_path / ".git").exists():
+            return {"success": False, "error": f"Repository {repo_name} not found"}
+        try:
+            repo = Repo(str(repo_path))
+            if not repo.remotes:
+                return {"success": False, "error": "No remote configured"}
+            try:
+                if self._fetch_rate_limiter:
+                    self._fetch_rate_limiter.acquire(timeout=600.0)
+                if "origin" in repo.remotes:
+                    repo.remotes.origin.fetch()
+                else:
+                    repo.remotes[0].fetch()
+            except GitCommandError as e:
+                return {"success": False, "error": f"Fetch failed: {str(e)}"}
+            if self.cache_manager:
+                self.cache_manager.invalidate(repo_name)
+                self.cache_manager.invalidate("all")
+            if self.activity_log:
+                self.activity_log.log_operation(
+                    "fetch", repo_name, "success", "Fetched remote refs", {}
+                )
+            return {"success": True, "message": f"Fetched remotes for {repo_name}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def fetch_repos(self, repo_names: list) -> Dict:
+        """Fetch multiple repositories."""
+        out = {
+            "success": True,
+            "total": len(repo_names),
+            "succeeded": 0,
+            "failed": 0,
+            "results": [],
+        }
+        for name in repo_names:
+            r = self.fetch_repo(name)
+            r["repo"] = name
+            out["results"].append(r)
+            if r["success"]:
+                out["succeeded"] += 1
+            else:
+                out["failed"] += 1
+                out["success"] = False
+        if self.cache_manager:
+            self.cache_manager.invalidate("all")
+        return out
 

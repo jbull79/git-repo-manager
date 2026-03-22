@@ -1,10 +1,13 @@
 """Git repository scanning and status detection."""
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import git
 from git import Repo, InvalidGitRepositoryError
+
+from app.git_utils import remote_url_to_web
 
 
 class GitScanner:
@@ -85,10 +88,13 @@ class GitScanner:
                 "local_branches": local_branches,
                 "remote_branches": remote_branches,
                 "remote_url": remote_url,
+                "remote_web_url": remote_url_to_web(remote_url),
                 "last_commit": last_commit,
                 "status": status,
-                "is_dirty": repo.is_dirty(),
-                "has_remote": len(repo.remotes) > 0
+                "is_dirty": repo.is_dirty(index=True, working_tree=True, untracked_files=True),
+                "has_remote": len(repo.remotes) > 0,
+                "tracking_branch": status.get("compared_to_ref"),
+                "remote_synced_at": status.get("remote_synced_at"),
             }
         except InvalidGitRepositoryError:
             return None
@@ -104,7 +110,9 @@ class GitScanner:
             "state": "unknown",
             "behind": 0,
             "ahead": 0,
-            "diverged": False
+            "diverged": False,
+            "remote_synced_at": None,
+            "compared_to_ref": None,
         }
         
         try:
@@ -115,6 +123,7 @@ class GitScanner:
             # Fetch from remote to get latest remote refs before checking status
             # This ensures we detect divergence accurately. Rate limiter paces fetches
             # without skipping them (each completed fetch yields accurate comparison).
+            fetch_ok = False
             try:
                 if self._fetch_rate_limiter:
                     self._fetch_rate_limiter.acquire(timeout=600.0)
@@ -123,18 +132,24 @@ class GitScanner:
                     repo.remotes[remote_name].fetch()
                 elif len(repo.remotes) > 0:
                     repo.remotes[0].fetch()
+                fetch_ok = True
             except Exception:
                 # If fetch fails, we'll still try to check status with existing refs
                 pass
+            
+            if fetch_ok:
+                status["remote_synced_at"] = datetime.now(timezone.utc).isoformat()
             
             # Try to find remote tracking branch
             remote_name = "origin"
             main_branches = ["main", "master"]
             
             tracking_branch = None
+            compared_to_ref = None
             for main_branch in main_branches:
                 try:
                     tracking_branch = repo.refs[f"{remote_name}/{main_branch}"]
+                    compared_to_ref = f"{remote_name}/{main_branch}"
                     break
                 except (IndexError, AttributeError):
                     continue
@@ -143,9 +158,12 @@ class GitScanner:
             if not tracking_branch:
                 try:
                     tracking_branch = repo.refs[f"{remote_name}/{branch_name}"]
+                    compared_to_ref = f"{remote_name}/{branch_name}"
                 except (IndexError, AttributeError):
                     status["state"] = "no_tracking"
                     return status
+            
+            status["compared_to_ref"] = compared_to_ref
             
             # Compare commits
             local_commit = repo.head.commit

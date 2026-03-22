@@ -23,6 +23,10 @@ class Settings:
             "pull_strategy": "merge",  # Strategy for handling diverged branches: "merge" (default), "rebase", or "reset"
             # Pace git fetch() calls across all repos (accurate status; avoids remote rate limits)
             "fetch_max_per_minute": int(os.getenv("FETCH_MAX_PER_MINUTE") or "60"),
+            # Read-only: block all pull operations (fetch-only refresh still allowed)
+            "read_only": os.getenv("WEB_REPO_READ_ONLY", "").lower() in ("1", "true", "yes"),
+            # Block pull/merge when working tree is dirty unless client sends force=true
+            "block_pull_on_dirty": True,
         }
         self.settings = self._load_settings()
     

@@ -51,6 +51,7 @@ class AppServices:
             base_path=git_path,
             activity_log=self.activity_log,
             cache_manager=self.cache_manager,
+            fetch_rate_limiter=self.fetch_rate_limiter,
         )
         self.schedule_manager = ScheduleManager(
             base_path=git_path,
@@ -96,6 +97,7 @@ class AppServices:
             base_path=new_path,
             activity_log=self.activity_log,
             cache_manager=self.cache_manager,
+            fetch_rate_limiter=self.fetch_rate_limiter,
         )
         self.schedule_manager = ScheduleManager(
             base_path=new_path,

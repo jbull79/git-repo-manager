@@ -141,6 +141,18 @@ class ScheduleManager:
     
     def _execute_schedule(self, repos: List[str], schedule_name: str = "Scheduled"):
         """Execute git pull for scheduled repositories."""
+        try:
+            from app.services import get_services
+            if get_services().settings.get("read_only", False):
+                print("Scheduled pull skipped: read-only mode is enabled")
+                if self.activity_log:
+                    self.activity_log.log_operation(
+                        "scheduled_pull", "system", "warning",
+                        f"{schedule_name}: skipped (read-only mode)", {}
+                    )
+                return
+        except Exception as e:
+            print(f"Read-only check: {e}")
         print(f"Executing scheduled pull for repos: {repos}")
         for repo in repos:
             try:

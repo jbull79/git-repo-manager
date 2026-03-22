@@ -73,16 +73,20 @@ The web interface provides:
   - Repository name
   - Current branch
   - Status indicator (behind/ahead/up-to-date/diverged)
-  - Remote URL
+  - Remote URL, optional **Open on remote** link (GitHub/GitLab-style hosts)
+  - Tracking branch and last status refresh time (after fetch/scan)
   - Last commit information
   - Local and remote branches (collapsible)
-  - Update button
+  - **Fetch** (remote refs only) and **Update** (pull) buttons
+
+- **Guided resolution**: If a pull is blocked (dirty tree, read-only, or merge conflict), the app shows **options** with a **(recommended)** action (e.g. fetch-only instead of force-pull) instead of a plain browser confirm.
 
 - **Header Controls**:
   - **Dark Mode Toggle**: Switch between light and dark themes
   - **Auto-refresh Toggle**: Enable/disable automatic refresh (default: 30 seconds)
   - **Refresh Button**: Manually refresh repository status
   - **Stats Button**: View statistics dashboard
+  - **Fetch All Button**: Run `git fetch` on all repos (no merge)
   - **Update All Button**: Pull updates for all repositories at once
   - **Schedules Button**: Manage automatic update schedules
   - **Activity Button**: View activity log
@@ -168,6 +172,18 @@ Then restart: `docker-compose up -d`
 ### Permissions
 
 The container runs as a non-root user (`appuser`) for security. If you encounter permission issues, you may need to adjust file permissions on your git repositories.
+
+### Security and threat model (short)
+
+This app is intended to run on a **trusted network** (e.g. home LAN or VPN). Treat it like any admin tool that can run `git` against your repos.
+
+| Concern | Mitigation |
+|--------|------------|
+| **Unauthorized use** | Optional `WEB_REPO_API_KEY` — set a strong key and require `X-API-Key` on API calls. The browser can store the key in Settings. |
+| **Accidental merges** | Pulls can be blocked when the working tree is dirty (`block_pull_on_dirty`, default on). The UI can confirm and retry with `force`. |
+| **Read-only / audit** | `WEB_REPO_READ_ONLY` (or Settings) disables pull and scheduled pulls; **fetch-only** (no merge) remains available so you can refresh remote-tracking refs without merging. |
+| **Host / container access** | Anyone who can reach the HTTP port can use the UI unless an API key is set. Use a reverse proxy with TLS and auth if you expose it beyond localhost. |
+| **Repo data** | The app needs read/write access to your git directories for pulls; SSH keys are typically mounted read-only. |
 
 ### SSH Keys (for private repositories)
 

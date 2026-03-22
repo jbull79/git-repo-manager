@@ -108,11 +108,125 @@ function closeAllModals() {
         'settingsModal',
         'groupsModal',
         'groupFormModal',
-        'cacheDetailsModal'
+        'cacheDetailsModal',
+        'issueResolutionModal',
+        'divergedStrategyModal'
     ];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (modal) modal.classList.add('hidden');
+    });
+}
+
+/**
+ * Show a modal with labeled actions; one option can be marked (recommended).
+ * @returns {Promise<string|null>} chosen choice id, or null if cancelled
+ */
+function showIssueResolutionModal({ title, message, choices }) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('issueResolutionModal');
+        const titleEl = document.getElementById('issueResolutionTitle');
+        const msgEl = document.getElementById('issueResolutionMessage');
+        const container = document.getElementById('issueResolutionOptions');
+        const cancelBtn = document.getElementById('cancelIssueResolutionModal');
+        const closeBtn = document.getElementById('closeIssueResolutionModal');
+        if (!modal || !titleEl || !msgEl || !container) {
+            resolve(null);
+            return;
+        }
+
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            modal.classList.add('hidden');
+            modal.removeEventListener('keydown', onKey);
+            modal.onclick = null;
+            if (cancelBtn) cancelBtn.onclick = null;
+            if (closeBtn) closeBtn.onclick = null;
+            resolve(value);
+        };
+
+        const onKey = (e) => {
+            if (e.key === 'Escape') finish(null);
+        };
+
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        container.innerHTML = '';
+
+        choices.forEach((c) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            let base =
+                'w-full text-left rounded-lg border-2 px-4 py-3 transition focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-gray-800 ';
+            if (c.variant === 'danger') {
+                base +=
+                    'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 focus:ring-red-500';
+            } else if (c.variant === 'muted') {
+                base +=
+                    'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-gray-400';
+            } else if (c.recommended) {
+                base +=
+                    'border-blue-500 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 ring-2 ring-blue-200 dark:ring-blue-800 focus:ring-blue-500';
+            } else {
+                base +=
+                    'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-blue-500';
+            }
+            btn.className = base;
+
+            const titleRow = document.createElement('div');
+            titleRow.className = 'font-semibold text-gray-900 dark:text-gray-100 flex flex-wrap items-center gap-2';
+            titleRow.appendChild(document.createTextNode(c.label));
+            if (c.recommended) {
+                const badge = document.createElement('span');
+                badge.className = 'text-xs font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400';
+                badge.textContent = '(recommended)';
+                titleRow.appendChild(badge);
+            }
+            btn.appendChild(titleRow);
+            if (c.description) {
+                const desc = document.createElement('div');
+                desc.className = 'text-sm text-gray-600 dark:text-gray-400 mt-1.5 leading-snug';
+                desc.textContent = c.description;
+                btn.appendChild(desc);
+            }
+            btn.addEventListener('click', () => finish(c.id));
+            container.appendChild(btn);
+        });
+
+        modal.addEventListener('keydown', onKey);
+        modal.onclick = (e) => {
+            if (e.target === modal) finish(null);
+        };
+        if (cancelBtn) cancelBtn.onclick = () => finish(null);
+        if (closeBtn) closeBtn.onclick = () => finish(null);
+
+        modal.classList.remove('hidden');
+        const first = container.querySelector('button');
+        if (first) setTimeout(() => first.focus(), 50);
+    });
+}
+
+async function promptReadOnlyGuidance() {
+    return showIssueResolutionModal({
+        title: 'Read-only mode is on',
+        message:
+            'Pull and scheduled updates are disabled on the server. You can still use Fetch to refresh remote-tracking branches without merging.',
+        choices: [
+            {
+                id: 'open_settings',
+                label: 'Open settings',
+                description: 'Review read-only and other options if you have access.',
+                recommended: true
+            },
+            {
+                id: 'dismiss',
+                label: 'Dismiss',
+                description: 'Close this message.',
+                variant: 'muted'
+            }
+        ]
     });
 }
 
@@ -190,7 +304,10 @@ function initializeEventListeners() {
         }
         
         const pullAllBtn = document.getElementById('pullAllBtn');
-        if (pullAllBtn) pullAllBtn.addEventListener('click', pullAllRepos);
+        if (pullAllBtn) pullAllBtn.addEventListener('click', () => pullAllRepos(false));
+
+        const fetchAllBtn = document.getElementById('fetchAllBtn');
+        if (fetchAllBtn) fetchAllBtn.addEventListener('click', fetchAllRepos);
         
         const autoRefreshToggle = document.getElementById('autoRefreshToggle');
         if (autoRefreshToggle) autoRefreshToggle.addEventListener('change', toggleAutoRefresh);
@@ -867,35 +984,7 @@ function renderRepositories(repos) {
     }
     
     // Attach event listeners
-    repos.forEach(repo => {
-        const updateBtn = document.getElementById(`updateBtn-${repo.name}`);
-        if (updateBtn) {
-            updateBtn.addEventListener('click', () => pullRepo(repo.name));
-        }
-        
-        const detailsToggle = document.getElementById(`detailsToggle-${repo.name}`);
-        if (detailsToggle) {
-            detailsToggle.addEventListener('click', () => toggleDetails(repo.name));
-            initializeDetailsToggle(repo.name);
-        }
-        
-        const branchToggle = document.getElementById(`branchToggle-${repo.name}`);
-        if (branchToggle) {
-            branchToggle.addEventListener('click', () => toggleBranchList(repo.name));
-        }
-        
-        const checkbox = document.querySelector(`.bulk-checkbox[data-repo="${repo.name}"]`);
-        if (checkbox) {
-            checkbox.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    selectedRepos.add(repo.name);
-                } else {
-                    selectedRepos.delete(repo.name);
-                }
-                updateBulkActions();
-            });
-        }
-    });
+    repos.forEach(repo => wireRepoCardListeners(repo));
 }
 
 // Create repository card HTML
@@ -961,6 +1050,9 @@ function createRepoCard(repo) {
                 ${repo.remote_url ? `<div class="text-sm text-gray-600 dark:text-gray-400 truncate" title="${escapeHtml(repo.remote_url)}">
                     <span class="font-medium">Remote:</span> ${escapeHtml(repo.remote_url)}
                 </div>` : '<div class="text-sm text-yellow-600 dark:text-yellow-400">No remote configured</div>'}
+                ${repo.tracking_branch ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Tracking: <span class="font-mono">${escapeHtml(repo.tracking_branch)}</span></div>` : ''}
+                ${repo.remote_synced_at ? `<div class="text-xs text-gray-500 dark:text-gray-400">Status refreshed: ${formatDate(repo.remote_synced_at)}</div>` : ''}
+                ${repo.remote_web_url ? `<div class="mt-1"><a href="${escapeHtml(repo.remote_web_url)}" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">Open on remote</a></div>` : ''}
                 
                 ${groups ? `<div class="flex flex-wrap gap-1 mt-2">
                     <span class="text-xs text-gray-500 dark:text-gray-400">Groups:</span> ${groups}
@@ -1010,12 +1102,18 @@ function createRepoCard(repo) {
             </div>
             ` : ''}
             
-            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
-                <button id="updateBtn-${repo.name}" class="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]">
+            <div class="pt-4 border-t border-gray-200 dark:border-gray-700 mt-auto flex gap-2">
+                <button type="button" id="fetchBtn-${repo.name}" class="flex-1 px-3 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all flex items-center justify-center gap-2 text-sm font-medium border border-gray-200 dark:border-gray-600" title="git fetch only (no merge)">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Fetch
+                </button>
+                <button type="button" id="updateBtn-${repo.name}" class="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                     </svg>
-                    Update Repository
+                    Update
                 </button>
             </div>
         </div>
@@ -1076,6 +1174,149 @@ function initializeDetailsToggle(repoName) {
     }
 }
 
+/** Wire card buttons after render or DOM replace */
+function wireRepoCardListeners(repo) {
+    const name = repo.name;
+    const updateBtn = document.getElementById(`updateBtn-${name}`);
+    if (updateBtn) {
+        updateBtn.addEventListener('click', () => pullRepo(name));
+    }
+    const fetchBtn = document.getElementById(`fetchBtn-${name}`);
+    if (fetchBtn) {
+        fetchBtn.addEventListener('click', () => fetchRepoRemote(name));
+    }
+    const detailsToggle = document.getElementById(`detailsToggle-${name}`);
+    if (detailsToggle) {
+        detailsToggle.addEventListener('click', () => toggleDetails(name));
+        initializeDetailsToggle(name);
+    }
+    const branchToggle = document.getElementById(`branchToggle-${name}`);
+    if (branchToggle) {
+        branchToggle.addEventListener('click', () => toggleBranchList(name));
+    }
+    const checkbox = document.querySelector(`.bulk-checkbox[data-repo="${name}"]`);
+    if (checkbox) {
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                selectedRepos.add(name);
+            } else {
+                selectedRepos.delete(name);
+            }
+            updateBulkActions();
+        });
+    }
+}
+
+async function fetchRepoRemote(repoName) {
+    const btn = document.getElementById(`fetchBtn-${repoName}`);
+    const original = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-70');
+        btn.innerHTML = '<span class="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>';
+    }
+    try {
+        const response = await apiFetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/fetch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Fetched remotes for ${repoName}`, 'success');
+            if (data.repo) {
+                updateSingleRepo(data.repo);
+            } else {
+                await refreshSingleRepo(repoName);
+            }
+        } else {
+            showToast(data.error || 'Fetch failed', 'error');
+        }
+    } catch (e) {
+        showToast(`Fetch error: ${e.message}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-70');
+            btn.innerHTML = original;
+        }
+    }
+}
+
+async function fetchAllRepos() {
+    const btn = document.getElementById('fetchAllBtn');
+    const original = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.classList.add('btn-loading');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>';
+    }
+    showLoading(true);
+    try {
+        const response = await apiFetch(`${API_BASE}/repos/fetch-all`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        });
+        const data = await response.json();
+        const total = typeof data.total === 'number' ? data.total : (data.results && data.results.length);
+        if (data.success) {
+            showToast(`Fetched all remotes (${data.succeeded}/${total})`, 'success');
+        } else {
+            showToast(`Fetch all: ${data.succeeded} ok, ${data.failed} failed`, data.failed > 0 ? 'warning' : 'success');
+        }
+        if (data.results) {
+            data.results.forEach((r) => {
+                if (!r.success) {
+                    showToast(`${r.repo || ''}: ${r.error}`, 'error', 5000);
+                }
+            });
+        }
+        setTimeout(() => loadRepositories(true), 800);
+    } catch (e) {
+        showToast(`Fetch all error: ${e.message}`, 'error');
+    } finally {
+        showLoading(false);
+        if (btn) {
+            btn.classList.remove('btn-loading');
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    }
+}
+
+/** Fetch remotes for a specific list of repo names (POST /api/repos/fetch-all). */
+async function fetchReposByNames(repoNames) {
+    if (!repoNames || repoNames.length === 0) return;
+    showLoading(true);
+    try {
+        const response = await apiFetch(`${API_BASE}/repos/fetch-all`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ repos: repoNames })
+        });
+        const data = await response.json();
+        const total = typeof data.total === 'number' ? data.total : (data.results && data.results.length);
+        if (data.success) {
+            showToast(`Fetched remotes (${data.succeeded}/${total})`, 'success');
+        } else {
+            showToast(`Fetch: ${data.succeeded} ok, ${data.failed} failed`, data.failed > 0 ? 'warning' : 'success');
+        }
+        if (data.results) {
+            data.results.forEach((r) => {
+                if (!r.success) {
+                    showToast(`${r.repo || ''}: ${r.error}`, 'error', 5000);
+                }
+            });
+        }
+        setTimeout(() => loadRepositories(true), 600);
+    } catch (e) {
+        showToast(`Fetch error: ${e.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 function toggleBranchList(repoName) {
     const branchList = document.getElementById(`branchList-${repoName}`);
     const toggle = document.getElementById(`branchToggle-${repoName}`);
@@ -1089,28 +1330,31 @@ function toggleBranchList(repoName) {
     }
 }
 
-// Pull single repository
-async function pullRepo(repoName, pullStrategy = null) {
+// Pull single repository (optional third arg: { force: true } to override dirty guard)
+async function pullRepo(repoName, pullStrategy = null, options = {}) {
+    const force = options && options.force === true;
+
     // Check if repo is diverged and show strategy selector if no strategy provided
-    if (!pullStrategy) {
+    if (!pullStrategy && !force) {
         const repo = allReposData.find(r => r.name === repoName);
         if (repo && repo.status && repo.status.state === 'diverged') {
-            // Show strategy selector modal
             return showDivergedStrategyModal(repoName);
         }
     }
-    
+
     const btn = document.getElementById(`updateBtn-${repoName}`);
     const originalText = btn ? btn.innerHTML : '';
-    
+
     if (btn) {
         btn.classList.add('btn-loading');
         btn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Updating...';
         btn.disabled = true;
     }
-    
+
     try {
-        const requestBody = pullStrategy ? { pull_strategy: pullStrategy } : {};
+        const requestBody = {};
+        if (pullStrategy) requestBody.pull_strategy = pullStrategy;
+        if (force) requestBody.force = true;
         const response = await apiFetch(`${API_BASE}/repos/${encodeURIComponent(repoName)}/pull`, {
             method: 'POST',
             headers: {
@@ -1119,16 +1363,94 @@ async function pullRepo(repoName, pullStrategy = null) {
             body: JSON.stringify(requestBody)
         });
         const data = await response.json();
-        
+
+        if (response.status === 403 && data.code === 'read_only') {
+            const ro = await promptReadOnlyGuidance();
+            if (ro === 'open_settings') {
+                await openSettingsModal();
+            }
+            return;
+        }
+
+        if (response.status === 409 && data.code === 'dirty_worktree' && !force) {
+            const choice = await showIssueResolutionModal({
+                title: 'Uncommitted or untracked changes',
+                message:
+                    `${repoName} has local changes. Pulling can merge or conflict with your working tree.\n\n` +
+                    'Choose how to proceed:',
+                choices: [
+                    {
+                        id: 'fetch_only',
+                        label: 'Fetch only',
+                        description:
+                            'Updates remote-tracking branches (origin/*) without merging — safest; use this to refresh status.',
+                        recommended: true
+                    },
+                    {
+                        id: 'force_pull',
+                        label: 'Pull anyway',
+                        description: 'Proceed with merge/rebase/pull despite a dirty tree (may conflict or mix with local edits).',
+                        variant: 'danger'
+                    },
+                    {
+                        id: 'dismiss',
+                        label: 'Cancel',
+                        description: 'Do nothing for now.',
+                        variant: 'muted'
+                    }
+                ]
+            });
+            if (choice === 'fetch_only') {
+                await fetchRepoRemote(repoName);
+                return;
+            }
+            if (choice === 'force_pull') {
+                return pullRepo(repoName, pullStrategy, { force: true });
+            }
+            showToast('Update cancelled', 'info');
+            return;
+        }
+
         if (data.success) {
             showToast(`Successfully updated ${repoName}`, 'success');
-            
-            // Update only this specific repo in the UI if we have the updated data
+
             if (data.repo) {
                 updateSingleRepo(data.repo);
             } else {
-                // Fallback: fetch just this repo's status if not included in response
                 await refreshSingleRepo(repoName);
+            }
+        } else if (data.conflict) {
+            const choice = await showIssueResolutionModal({
+                title: 'Merge conflict',
+                message: data.error || 'Pull could not complete because of conflicting changes.',
+                choices: [
+                    {
+                        id: 'fetch_only',
+                        label: 'Fetch only',
+                        description:
+                            'Refresh remote refs without merging — safe; resolve conflicts in the terminal or IDE, then try again.',
+                        recommended: true
+                    },
+                    {
+                        id: 'reset_remote',
+                        label: 'Reset to match remote',
+                        description:
+                            'Discard local commits and align the branch with origin (destructive). Use only if local work can be discarded.',
+                        variant: 'danger'
+                    },
+                    {
+                        id: 'dismiss',
+                        label: 'Dismiss',
+                        variant: 'muted'
+                    }
+                ]
+            });
+            if (choice === 'fetch_only') {
+                await fetchRepoRemote(repoName);
+                return;
+            }
+            if (choice === 'reset_remote') {
+                return pullRepo(repoName, 'reset', { force: true });
             }
         } else {
             showToast(`Failed to update ${repoName}: ${data.error}`, 'error');
@@ -1230,45 +1552,7 @@ function updateSingleRepo(repo) {
         
         if (newCard) {
             existingCard.replaceWith(newCard);
-            
-            // Re-attach event listeners
-            const updateBtn = document.getElementById(`updateBtn-${repo.name}`);
-            if (updateBtn) {
-                updateBtn.addEventListener('click', () => pullRepo(repo.name));
-            }
-            
-            const detailsToggle = document.getElementById(`detailsToggle-${repo.name}`);
-            if (detailsToggle) {
-                detailsToggle.addEventListener('click', () => toggleDetails(repo.name));
-            }
-            
-            const branchToggle = document.getElementById(`branchToggle-${repo.name}`);
-            if (branchToggle) {
-                branchToggle.addEventListener('click', () => toggleBranchList(repo.name));
-            }
-            
-            const checkbox = document.getElementById(`repoCheckbox-${repo.name}`);
-            if (checkbox) {
-                checkbox.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        selectedRepos.add(repo.name);
-                    } else {
-                        selectedRepos.delete(repo.name);
-                    }
-                });
-            }
-            
-            // Re-attach bulk checkbox if bulk selection is enabled
-            const bulkCheckbox = document.getElementById(`bulkCheckbox-${repo.name}`);
-            if (bulkCheckbox) {
-                bulkCheckbox.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        selectedRepos.add(repo.name);
-                    } else {
-                        selectedRepos.delete(repo.name);
-                    }
-                });
-            }
+            wireRepoCardListeners(repo);
         }
     } else {
         // Card doesn't exist, re-render all repos (shouldn't happen often)
@@ -1299,27 +1583,75 @@ async function refreshSingleRepo(repoName) {
 }
 
 // Pull all repositories
-async function pullAllRepos() {
+async function pullAllRepos(forceRetry = false) {
     const btn = document.getElementById('pullAllBtn');
     const originalText = btn.innerHTML;
-    
+
     btn.classList.add('btn-loading');
     btn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> Updating All...';
     showLoading(true);
-    
+
     try {
         const response = await apiFetch(`${API_BASE}/repos/pull-all`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(forceRetry ? { force: true } : {})
         });
         const data = await response.json();
-        
+
+        if (response.status === 403 && data.code === 'read_only') {
+            const ro = await promptReadOnlyGuidance();
+            if (ro === 'open_settings') {
+                await openSettingsModal();
+            }
+            return;
+        }
+
+        if (data.skipped_dirty > 0 && !forceRetry) {
+            const n = data.skipped_dirty;
+            const choice = await showIssueResolutionModal({
+                title: 'Some repositories were skipped',
+                message:
+                    `${n} repository/repositories have uncommitted or untracked changes and were not pulled.\n\n` +
+                    'Choose how to proceed:',
+                choices: [
+                    {
+                        id: 'fetch_all',
+                        label: 'Fetch all repositories',
+                        description:
+                            'Run git fetch everywhere — updates remote refs without merging (recommended).',
+                        recommended: true
+                    },
+                    {
+                        id: 'force_pull',
+                        label: 'Retry update with force',
+                        description:
+                            'Pull again for all repos, including dirty ones (may cause conflicts).',
+                        variant: 'danger'
+                    },
+                    {
+                        id: 'dismiss',
+                        label: 'Dismiss',
+                        description: 'Keep current state; review repos individually.',
+                        variant: 'muted'
+                    }
+                ]
+            });
+            if (choice === 'fetch_all') {
+                await fetchAllRepos();
+                return;
+            }
+            if (choice === 'force_pull') {
+                return pullAllRepos(true);
+            }
+        }
+
         if (data.success) {
             showToast(`Successfully updated ${data.succeeded} repository/repositories`, 'success');
         } else {
             showToast(`Updated ${data.succeeded} succeeded, ${data.failed} failed`, data.failed > 0 ? 'warning' : 'success');
         }
-        
-        // Show detailed results
+
         if (data.results) {
             data.results.forEach(result => {
                 if (!result.success) {
@@ -1327,8 +1659,7 @@ async function pullAllRepos() {
                 }
             });
         }
-        
-        // Reload repositories with force refresh to bypass cache and show updated status
+
         setTimeout(() => loadRepositories(true), 1000);
     } catch (error) {
         showToast(`Error updating repositories: ${error.message}`, 'error');
@@ -2454,21 +2785,66 @@ function updateBulkActions() {
     document.getElementById('bulkTagBtn').disabled = count === 0;
 }
 
-async function bulkUpdateSelected() {
+async function bulkUpdateSelected(forceRetry = false) {
     if (selectedRepos.size === 0) return;
-    
+
     const repos = Array.from(selectedRepos);
     showLoading(true);
-    
+
     try {
         const response = await apiFetch(`${API_BASE}/repos/bulk-pull`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ repos })
+            body: JSON.stringify({ repos, ...(forceRetry ? { force: true } : {}) })
         });
-        
+
         const data = await response.json();
-        
+
+        if (response.status === 403 && data.code === 'read_only') {
+            const ro = await promptReadOnlyGuidance();
+            if (ro === 'open_settings') {
+                await openSettingsModal();
+            }
+            return;
+        }
+
+        if (data.skipped_dirty > 0 && !forceRetry) {
+            const n = data.skipped_dirty;
+            const choice = await showIssueResolutionModal({
+                title: 'Some selected repositories were skipped',
+                message:
+                    `${n} repo(s) have local changes and were not pulled.\n\n` +
+                    'Choose how to proceed:',
+                choices: [
+                    {
+                        id: 'fetch_selected',
+                        label: 'Fetch selected repositories',
+                        description: 'Run git fetch on the same selection only — updates remotes without merging.',
+                        recommended: true
+                    },
+                    {
+                        id: 'force_pull',
+                        label: 'Retry update with force',
+                        description: 'Pull again for selected repos, including dirty ones (may conflict).',
+                        variant: 'danger'
+                    },
+                    {
+                        id: 'dismiss',
+                        label: 'Dismiss',
+                        description: 'Do nothing; fix changes locally first.',
+                        variant: 'muted'
+                    }
+                ]
+            });
+            if (choice === 'fetch_selected') {
+                await fetchReposByNames(repos);
+                return;
+            }
+            if (choice === 'force_pull') {
+                return bulkUpdateSelected(true);
+            }
+        }
+
         if (data.success) {
             showToast(`Updated ${data.succeeded}/${data.total} repositories`, 'success');
             selectedRepos.clear();
@@ -2783,36 +3159,95 @@ async function updateGroupRepos(groupId) {
     }
     
     if (!confirm(`Update all repositories in "${groupName}"?`)) return;
-    
+
+    await updateGroupReposPull(groupId, false);
+}
+
+async function updateGroupReposPull(groupId, forceRetry = false) {
     try {
         showToast('Updating repositories in group...', 'info');
-        
+
         const response = await apiFetch(`${API_BASE}/groups/${groupId}/pull-all`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(forceRetry ? { force: true } : {})
         });
         const data = await response.json();
-        
-        if (data.success || data.results) {
-            const successCount = data.results.filter(r => r.success).length;
-            const totalCount = data.results.length;
-            
+
+        if (response.status === 403 && data.code === 'read_only') {
+            const ro = await promptReadOnlyGuidance();
+            if (ro === 'open_settings') {
+                await openSettingsModal();
+            }
+            return;
+        }
+
+        const results = data.results || [];
+        const skippedDirty = results.filter(r => !r.success && r.code === 'dirty_worktree').length;
+        if (skippedDirty > 0 && !forceRetry) {
+            let groupRepoNames = [];
+            try {
+                const groupsResponse = await apiFetch(`${API_BASE}/groups`);
+                const groupsData = await groupsResponse.json();
+                if (groupsData.success) {
+                    const g = groupsData.groups.find((x) => x.id === groupId);
+                    if (g && Array.isArray(g.repos)) groupRepoNames = g.repos;
+                }
+            } catch (e) {
+                /* ignore */
+            }
+            const choice = await showIssueResolutionModal({
+                title: 'Some repositories in this group were skipped',
+                message:
+                    `${skippedDirty} repo(s) have local changes and were not pulled.\n\n` +
+                    'Choose how to proceed:',
+                choices: [
+                    {
+                        id: 'fetch_group',
+                        label: 'Fetch repositories in this group',
+                        description: 'git fetch for each repo in the group — no merge.',
+                        recommended: true
+                    },
+                    {
+                        id: 'force_pull',
+                        label: 'Retry update with force',
+                        description: 'Pull again for every repo in the group, including dirty ones.',
+                        variant: 'danger'
+                    },
+                    {
+                        id: 'dismiss',
+                        label: 'Dismiss',
+                        variant: 'muted'
+                    }
+                ]
+            });
+            if (choice === 'fetch_group') {
+                await fetchReposByNames(groupRepoNames);
+                return;
+            }
+            if (choice === 'force_pull') {
+                return updateGroupReposPull(groupId, true);
+            }
+        }
+
+        if (data.success || results.length) {
+            const successCount = results.filter(r => r.success).length;
+            const totalCount = results.length;
+
             if (successCount === totalCount) {
                 showToast(`Successfully updated all ${totalCount} ${totalCount === 1 ? 'repository' : 'repositories'} in group`, 'success');
             } else {
                 showToast(`Updated ${successCount} of ${totalCount} repositories in group`, 'warning');
             }
-            
-            // Update individual repos in the UI if we have updated repo data
+
             if (data.updated_repos && Array.isArray(data.updated_repos)) {
                 for (const repo of data.updated_repos) {
                     updateSingleRepo(repo);
                 }
             } else {
-                // Fallback: refresh all repos if we don't have individual updates
                 await loadRepositories(true);
             }
-            
-            // Refresh groups to update the "Behind" group if needed
+
             await loadGroups();
         } else {
             showToast('Failed to update group repositories: ' + (data.error || 'Unknown error'), 'error');

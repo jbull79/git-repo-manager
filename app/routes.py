@@ -4,6 +4,7 @@ import traceback
 from flask import Blueprint, render_template, jsonify, request
 from app.services import get_services, APP_VERSION
 from app.auth import api_key_required, check_api_key, unauthorized_response
+from app.guards import is_read_only, read_only_response
 
 bp = Blueprint('git_repo_manager', __name__)
 
@@ -22,15 +23,27 @@ def index():
 @bp.route('/api/health')
 def health():
     """Health check endpoint."""
-    return jsonify({"status": "healthy"})
+    s = get_services()
+    gp = s.git_path
+    git_ok = os.path.isdir(gp)
+    status = "healthy" if git_ok else "degraded"
+    return jsonify({
+        "status": status,
+        "git_path": gp,
+        "git_path_ok": git_ok,
+        "read_only": bool(s.settings.get("read_only", False)),
+    })
 
 
 @bp.route('/api/config')
 def public_config():
     """Public client config (no auth)."""
+    s = get_services()
     return jsonify({
         "version": APP_VERSION,
         "api_key_required": api_key_required(),
+        "read_only": bool(s.settings.get("read_only", False)),
+        "block_pull_on_dirty": bool(s.settings.get("block_pull_on_dirty", True)),
     })
 
 
@@ -232,14 +245,26 @@ def repo_status(repo_name):
 def pull_repo(repo_name):
     """Pull updates for a specific repository."""
     try:
+        if is_read_only(get_services().settings.get):
+            return read_only_response()
         # Get pull strategy from request or settings (default: merge)
         pull_strategy = None
+        force = False
         if request.is_json and request.json:
             pull_strategy = request.json.get('pull_strategy')
+            force = bool(request.json.get('force', False))
         if not pull_strategy:
             pull_strategy = get_services().settings.get('pull_strategy', 'merge')
-        
-        result = get_services().operations.pull_repo(repo_name, pull_strategy=pull_strategy)
+        block_on_dirty = bool(get_services().settings.get('block_pull_on_dirty', True))
+
+        result = get_services().operations.pull_repo(
+            repo_name,
+            pull_strategy=pull_strategy,
+            force=force,
+            block_on_dirty=block_on_dirty,
+        )
+        if result.get("code") == "dirty_worktree":
+            return jsonify(result), 409
         status_code = 200 if result["success"] else 400
         
         # If pull was successful, get updated repo info and sync behind group
@@ -269,16 +294,26 @@ def pull_repo(repo_name):
 def pull_all_repos():
     """Pull updates for all repositories."""
     try:
+        if is_read_only(get_services().settings.get):
+            return read_only_response()
         # Get pull strategy from request or settings (default: merge)
         pull_strategy = None
+        force = False
         if request.is_json and request.json:
             pull_strategy = request.json.get('pull_strategy')
+            force = bool(request.json.get('force', False))
         if not pull_strategy:
             pull_strategy = get_services().settings.get('pull_strategy', 'merge')
-        
+        block_on_dirty = bool(get_services().settings.get('block_pull_on_dirty', True))
+
         # Get list of all repos
         repo_names = get_services().scanner.find_repositories()
-        result = get_services().operations.pull_all_repos(repo_names, pull_strategy=pull_strategy)
+        result = get_services().operations.pull_all_repos(
+            repo_names,
+            pull_strategy=pull_strategy,
+            force=force,
+            block_on_dirty=block_on_dirty,
+        )
         status_code = 200 if result["success"] else 207  # Multi-status
         
         # After pulling all repos, rescan and sync the behind group
@@ -299,6 +334,36 @@ def pull_all_repos():
             "success": False,
             "error": str(e)
         }), 500
+
+
+@bp.route('/api/repos/<repo_name>/fetch', methods=['POST'])
+def fetch_repo_remote(repo_name):
+    """Fetch remote refs only (no merge)."""
+    try:
+        result = get_services().operations.fetch_repo(repo_name)
+        if result.get("success"):
+            info = get_services().scanner.get_repo_info(repo_name)
+            if info:
+                result["repo"] = info
+        code = 200 if result.get("success") else 400
+        return jsonify(result), code
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route('/api/repos/fetch-all', methods=['POST'])
+def fetch_all_repos_remote():
+    """Fetch all remotes (optional JSON body: {\"repos\": [\"a\",\"b\"]} — default all)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        repo_names = data.get("repos")
+        if repo_names is None:
+            repo_names = get_services().scanner.find_repositories()
+        result = get_services().operations.fetch_repos(repo_names)
+        code = 200 if result.get("success") else 207
+        return jsonify(result), code
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # Schedule management endpoints
@@ -747,6 +812,8 @@ def remove_repo_from_group(group_id, repo_name):
 def pull_all_group_repos(group_id):
     """Pull updates for all repositories in a group."""
     try:
+        if is_read_only(get_services().settings.get):
+            return read_only_response()
         # Get the group
         groups = get_services().repo_groups.get_groups()
         group = next((g for g in groups if g.get('id') == group_id), None)
@@ -773,18 +840,29 @@ def pull_all_group_repos(group_id):
         
         # Get pull strategy from request or settings (default: merge)
         pull_strategy = None
+        force = False
         if request.is_json and request.json:
             pull_strategy = request.json.get('pull_strategy')
+            force = bool(request.json.get('force', False))
         if not pull_strategy:
             pull_strategy = get_services().settings.get('pull_strategy', 'merge')
-        
+        block_on_dirty = bool(get_services().settings.get('block_pull_on_dirty', True))
+
         for repo_name in repo_names:
-            result = get_services().operations.pull_repo(repo_name, pull_strategy=pull_strategy)
-            results.append({
+            result = get_services().operations.pull_repo(
+                repo_name,
+                pull_strategy=pull_strategy,
+                force=force,
+                block_on_dirty=block_on_dirty,
+            )
+            entry = {
                 "repo": repo_name,
                 "success": result.get("success", False),
-                "message": result.get("message") or result.get("error", "Unknown error")
-            })
+                "message": result.get("message") or result.get("error", "Unknown error"),
+            }
+            if result.get("code"):
+                entry["code"] = result["code"]
+            results.append(entry)
             
             if result.get("success"):
                 # Get updated repo info (bypasses cache since we just invalidated it)
@@ -874,11 +952,13 @@ def remove_tag(repo_name, tag):
         }), 500
 
 
-# Bulk get_services().operations
+# Bulk operations
 @bp.route('/api/repos/bulk-pull', methods=['POST'])
 def bulk_pull():
     """Pull updates for selected repositories."""
     try:
+        if is_read_only(get_services().settings.get):
+            return read_only_response()
         data = request.get_json()
         repo_names = data.get('repos', [])
         
@@ -890,12 +970,20 @@ def bulk_pull():
         
         # Get pull strategy from request or settings (default: merge)
         pull_strategy = None
+        force = False
         if request.is_json and request.json:
             pull_strategy = request.json.get('pull_strategy')
+            force = bool(request.json.get('force', False))
         if not pull_strategy:
             pull_strategy = get_services().settings.get('pull_strategy', 'merge')
-        
-        result = get_services().operations.pull_all_repos(repo_names, pull_strategy=pull_strategy)
+        block_on_dirty = bool(get_services().settings.get('block_pull_on_dirty', True))
+
+        result = get_services().operations.pull_all_repos(
+            repo_names,
+            pull_strategy=pull_strategy,
+            force=force,
+            block_on_dirty=block_on_dirty,
+        )
         status_code = 200 if result["success"] else 207
         
         # After bulk pull, rescan updated repos and sync the behind group
